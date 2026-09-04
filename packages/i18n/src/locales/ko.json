@@ -2,6 +2,7 @@
   "common.appName": "ClassTown",
   "common.loading": "불러오는 중...",
   "auth.login.title": "로그인",
+  "auth.login.subtitle": "ClassTown 교사 계정으로 로그인하세요.",
   "auth.login.emailLabel": "이메일",
   "auth.login.passwordLabel": "비밀번호",
   "auth.login.submit": "로그인",
@@ -11,6 +12,9 @@
   "auth.login.noAccountPrompt": "계정이 없으신가요?",
   "auth.login.signupLink": "회원가입",
   "auth.signup.title": "회원가입",
+  "auth.signup.subtitle": "교사 계정을 만들고 ClassTown을 시작하세요.",
+  "auth.signup.profileSection": "프로필",
+  "auth.signup.accountSection": "계정 정보",
   "auth.signup.nameLabel": "이름",
   "auth.signup.schoolNameLabel": "학교 이름",
   "auth.signup.emailLabel": "이메일",
@@ -27,6 +31,10 @@
   "auth.teacher.welcomeLabel": "환영합니다",
   "auth.teacher.emailLabel": "이메일",
   "auth.teacher.schoolLabel": "학교",
+  "auth.teacher.roleLabel": "역할",
+  "auth.teacher.roleTeacher": "교사",
+  "auth.teacher.comingSoonTitle": "클래스 관리 기능 준비 중",
+  "auth.teacher.comingSoonBody": "학급 생성과 참가 코드 발급 기능이 곧 제공될 예정입니다.",
   "auth.teacher.logout": "로그아웃",
   "auth.teacher.loggingOut": "로그아웃하는 중..."
 }

@@ -26,7 +26,7 @@ export function TextField({ label, error, className, ...rest }: TextFieldProps) 
         aria-describedby={error ? errorId : undefined}
         className={[
           "rounded-lg border px-3 py-2 text-sm outline-none transition-colors",
-          "focus:ring-2 focus:ring-brand-500",
+          "focus:ring-2 focus:ring-brand-700",
           error ? "border-red-500" : "border-neutral-200",
           className,
         ]

@@ -14,8 +14,11 @@
  * system.
  */
 @theme {
+  /* 500/600 are non-text accents only — see colors.ts for why. */
   --color-brand-500: #f97316;
   --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+  --color-brand-800: #9a3412;
   --color-neutral-50: #fafaf9;
   --color-neutral-100: #f0efed;
   --color-neutral-200: #e5e3e0;

@@ -2,6 +2,7 @@
   "common.appName": "ClassTown",
   "common.loading": "Loading...",
   "auth.login.title": "Log in",
+  "auth.login.subtitle": "Log in with your ClassTown teacher account.",
   "auth.login.emailLabel": "Email",
   "auth.login.passwordLabel": "Password",
   "auth.login.submit": "Log in",
@@ -11,6 +12,9 @@
   "auth.login.noAccountPrompt": "Don't have an account?",
   "auth.login.signupLink": "Sign up",
   "auth.signup.title": "Sign up",
+  "auth.signup.subtitle": "Create a teacher account to get started with ClassTown.",
+  "auth.signup.profileSection": "Profile",
+  "auth.signup.accountSection": "Account",
   "auth.signup.nameLabel": "Name",
   "auth.signup.schoolNameLabel": "School name",
   "auth.signup.emailLabel": "Email",
@@ -27,6 +31,10 @@
   "auth.teacher.welcomeLabel": "Welcome",
   "auth.teacher.emailLabel": "Email",
   "auth.teacher.schoolLabel": "School",
+  "auth.teacher.roleLabel": "Role",
+  "auth.teacher.roleTeacher": "Teacher",
+  "auth.teacher.comingSoonTitle": "Classroom tools coming soon",
+  "auth.teacher.comingSoonBody": "Creating classes and issuing join codes will be available soon.",
   "auth.teacher.logout": "Log out",
   "auth.teacher.loggingOut": "Logging out..."
 }

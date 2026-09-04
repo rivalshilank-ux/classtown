@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Alert, Card, Header } from "@classtown/ui";
 import { DEFAULT_LOCALE, translate } from "@classtown/i18n";
 import { getCurrentTeacher } from "@/lib/auth/getCurrentTeacher";
 import { LogoutButton } from "./LogoutButton";
@@ -21,27 +22,53 @@ export default async function TeacherPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-xl font-bold text-neutral-900">
-          {translate(DEFAULT_LOCALE, "auth.teacher.welcomeLabel")}, {teacher.name}
-        </h1>
-        <dl className="flex flex-col gap-2 text-sm text-neutral-900">
-          <div className="flex justify-between gap-4">
-            <dt className="font-medium">
-              {translate(DEFAULT_LOCALE, "auth.teacher.emailLabel")}
-            </dt>
-            <dd>{teacher.email}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="font-medium">
-              {translate(DEFAULT_LOCALE, "auth.teacher.schoolLabel")}
-            </dt>
-            <dd>{teacher.schoolName}</dd>
-          </div>
-        </dl>
+    <div className="flex min-h-screen flex-col">
+      <Header>
         <LogoutButton />
-      </div>
-    </main>
+      </Header>
+
+      <main className="flex flex-1 flex-col items-center gap-6 p-4 py-8">
+        <div className="w-full max-w-sm">
+          <h1 className="text-2xl font-bold text-neutral-900 sm:text-3xl">
+            {translate(DEFAULT_LOCALE, "auth.teacher.welcomeLabel")}, {teacher.name}
+          </h1>
+        </div>
+
+        <Card className="max-w-sm">
+          <dl className="flex flex-col gap-3 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-neutral-500">
+                {translate(DEFAULT_LOCALE, "auth.teacher.emailLabel")}
+              </dt>
+              <dd className="font-medium text-neutral-900">{teacher.email}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-neutral-500">
+                {translate(DEFAULT_LOCALE, "auth.teacher.schoolLabel")}
+              </dt>
+              <dd className="font-medium text-neutral-900">{teacher.schoolName}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-neutral-500">
+                {translate(DEFAULT_LOCALE, "auth.teacher.roleLabel")}
+              </dt>
+              <dd className="font-medium text-neutral-900">
+                {translate(DEFAULT_LOCALE, "auth.teacher.roleTeacher")}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+
+        <div className="w-full max-w-sm">
+          <Alert variant="info">
+            <span className="font-medium">
+              {translate(DEFAULT_LOCALE, "auth.teacher.comingSoonTitle")}
+            </span>
+            <br />
+            {translate(DEFAULT_LOCALE, "auth.teacher.comingSoonBody")}
+          </Alert>
+        </div>
+      </main>
+    </div>
   );
 }

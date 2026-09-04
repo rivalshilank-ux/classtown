@@ -33,13 +33,13 @@ export function LogoutButton() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {error && <Alert variant="error">{error}</Alert>}
-      <Button variant="secondary" onClick={handleClick} disabled={isPending}>
+    <div className="flex flex-col items-end gap-2">
+      <Button variant="ghost" onClick={handleClick} isLoading={isPending}>
         {isPending
           ? translate(DEFAULT_LOCALE, "auth.teacher.loggingOut")
           : translate(DEFAULT_LOCALE, "auth.teacher.logout")}
       </Button>
+      {error && <Alert variant="error">{error}</Alert>}
     </div>
   );
 }

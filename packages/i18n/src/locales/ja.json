@@ -2,6 +2,7 @@
   "common.appName": "ClassTown",
   "common.loading": "読み込み中...",
   "auth.login.title": "ログイン",
+  "auth.login.subtitle": "ClassTownの教師アカウントでログインしてください。",
   "auth.login.emailLabel": "メールアドレス",
   "auth.login.passwordLabel": "パスワード",
   "auth.login.submit": "ログイン",
@@ -11,6 +12,9 @@
   "auth.login.noAccountPrompt": "アカウントをお持ちでないですか?",
   "auth.login.signupLink": "新規登録",
   "auth.signup.title": "新規登録",
+  "auth.signup.subtitle": "教師アカウントを作成してClassTownを始めましょう。",
+  "auth.signup.profileSection": "プロフィール",
+  "auth.signup.accountSection": "アカウント情報",
   "auth.signup.nameLabel": "名前",
   "auth.signup.schoolNameLabel": "学校名",
   "auth.signup.emailLabel": "メールアドレス",
@@ -27,6 +31,10 @@
   "auth.teacher.welcomeLabel": "ようこそ",
   "auth.teacher.emailLabel": "メールアドレス",
   "auth.teacher.schoolLabel": "学校",
+  "auth.teacher.roleLabel": "役割",
+  "auth.teacher.roleTeacher": "教師",
+  "auth.teacher.comingSoonTitle": "クラス管理機能は準備中です",
+  "auth.teacher.comingSoonBody": "クラス作成と参加コードの発行機能は近日公開予定です。",
   "auth.teacher.logout": "ログアウト",
   "auth.teacher.loggingOut": "ログアウト中..."
 }

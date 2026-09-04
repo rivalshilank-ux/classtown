@@ -3,7 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Alert, Button, TextField } from "@classtown/ui";
+import { Alert, Button, Card, Header, TextField } from "@classtown/ui";
 import { DEFAULT_LOCALE, translate, type TranslationKey } from "@classtown/i18n";
 import { teacherSignupSchema } from "@classtown/shared-schema";
 import { signUpTeacher } from "@/lib/auth/teacherActions";
@@ -68,70 +68,92 @@ export function SignupForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      className="flex w-full max-w-sm flex-col gap-4"
-    >
-      <h1 className="text-xl font-bold text-neutral-900">{t("auth.signup.title")}</h1>
+    <div className="flex min-h-screen flex-col">
+      <Header />
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 p-4 py-8">
+        <div className="flex w-full max-w-sm flex-col items-center gap-1 text-center">
+          <h1 className="text-2xl font-bold text-neutral-900 sm:text-3xl">
+            {t("auth.signup.title")}
+          </h1>
+          <p className="text-sm text-neutral-600">{t("auth.signup.subtitle")}</p>
+        </div>
 
-      {formError && <Alert variant="error">{formError}</Alert>}
-      {successMessage && <Alert variant="success">{successMessage}</Alert>}
+        <Card className="max-w-sm">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+            {formError && <Alert variant="error">{formError}</Alert>}
+            {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-      <TextField
-        label={t("auth.signup.nameLabel")}
-        name="name"
-        autoComplete="name"
-        required
-        disabled={isPending}
-        error={fieldErrors.name}
-      />
-      <TextField
-        label={t("auth.signup.schoolNameLabel")}
-        name="schoolName"
-        autoComplete="organization"
-        required
-        disabled={isPending}
-        error={fieldErrors.schoolName}
-      />
-      <TextField
-        label={t("auth.signup.emailLabel")}
-        name="email"
-        type="email"
-        autoComplete="email"
-        required
-        disabled={isPending}
-        error={fieldErrors.email}
-      />
-      <TextField
-        label={t("auth.signup.passwordLabel")}
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        required
-        disabled={isPending}
-        error={fieldErrors.password}
-      />
-      <TextField
-        label={t("auth.signup.confirmPasswordLabel")}
-        name="confirmPassword"
-        type="password"
-        autoComplete="new-password"
-        required
-        disabled={isPending}
-        error={fieldErrors.confirmPassword}
-      />
+            <fieldset className="flex flex-col gap-4 border-0 p-0">
+              <legend className="mb-1 px-0 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                {t("auth.signup.profileSection")}
+              </legend>
+              <TextField
+                label={t("auth.signup.nameLabel")}
+                name="name"
+                autoComplete="name"
+                required
+                disabled={isPending}
+                error={fieldErrors.name}
+              />
+              <TextField
+                label={t("auth.signup.schoolNameLabel")}
+                name="schoolName"
+                autoComplete="organization"
+                required
+                disabled={isPending}
+                error={fieldErrors.schoolName}
+              />
+            </fieldset>
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? t("auth.signup.submitting") : t("auth.signup.submit")}
-      </Button>
+            <fieldset className="flex flex-col gap-4 border-0 p-0">
+              <legend className="mb-1 px-0 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                {t("auth.signup.accountSection")}
+              </legend>
+              <TextField
+                label={t("auth.signup.emailLabel")}
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                disabled={isPending}
+                error={fieldErrors.email}
+              />
+              <TextField
+                label={t("auth.signup.passwordLabel")}
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={isPending}
+                error={fieldErrors.password}
+              />
+              <TextField
+                label={t("auth.signup.confirmPasswordLabel")}
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={isPending}
+                error={fieldErrors.confirmPassword}
+              />
+            </fieldset>
 
-      <p className="text-sm text-neutral-900">
-        {t("auth.signup.hasAccountPrompt")}{" "}
-        <Link href="/login" className="font-medium text-brand-500 hover:underline">
-          {t("auth.signup.loginLink")}
-        </Link>
-      </p>
-    </form>
+            <Button type="submit" isLoading={isPending} className="w-full">
+              {isPending ? t("auth.signup.submitting") : t("auth.signup.submit")}
+            </Button>
+          </form>
+        </Card>
+
+        <p className="text-sm text-neutral-600">
+          {t("auth.signup.hasAccountPrompt")}{" "}
+          <Link
+            href="/login"
+            className="rounded font-medium text-brand-700 hover:text-brand-800 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
+          >
+            {t("auth.signup.loginLink")}
+          </Link>
+        </p>
+      </main>
+    </div>
   );
 }

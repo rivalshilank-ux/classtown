@@ -2,6 +2,7 @@
   "common.appName": "ClassTown",
   "common.loading": "加载中...",
   "auth.login.title": "登录",
+  "auth.login.subtitle": "使用您的 ClassTown 教师账号登录。",
   "auth.login.emailLabel": "邮箱",
   "auth.login.passwordLabel": "密码",
   "auth.login.submit": "登录",
@@ -11,6 +12,9 @@
   "auth.login.noAccountPrompt": "还没有账号？",
   "auth.login.signupLink": "注册",
   "auth.signup.title": "注册",
+  "auth.signup.subtitle": "创建教师账号，开始使用 ClassTown。",
+  "auth.signup.profileSection": "个人信息",
+  "auth.signup.accountSection": "账号信息",
   "auth.signup.nameLabel": "姓名",
   "auth.signup.schoolNameLabel": "学校名称",
   "auth.signup.emailLabel": "邮箱",
@@ -27,6 +31,10 @@
   "auth.teacher.welcomeLabel": "欢迎",
   "auth.teacher.emailLabel": "邮箱",
   "auth.teacher.schoolLabel": "学校",
+  "auth.teacher.roleLabel": "角色",
+  "auth.teacher.roleTeacher": "教师",
+  "auth.teacher.comingSoonTitle": "班级管理功能即将上线",
+  "auth.teacher.comingSoonBody": "创建班级和生成加入码功能即将推出。",
   "auth.teacher.logout": "退出登录",
   "auth.teacher.loggingOut": "正在退出..."
 }

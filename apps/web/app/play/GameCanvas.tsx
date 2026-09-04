@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createGameClient, type ConnectionStatus } from "@classtown/game-client";
+import { Logo } from "@classtown/ui";
 
 const GAME_SERVER_URL =
   process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? "ws://localhost:2567";
@@ -55,6 +56,10 @@ export function GameCanvas() {
   return (
     <div className="relative h-screen w-screen">
       <div ref={containerRef} className="h-full w-full" />
+      {/* Ties the game view back to the same brand as the teacher screens — otherwise nothing here says "ClassTown" at all. */}
+      <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-white/90 px-2 py-1 shadow-sm">
+        <Logo size="sm" />
+      </div>
       {showOverlay && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-neutral-900/60 text-white">
           <p>{error ?? STATUS_LABEL[status]}</p>
