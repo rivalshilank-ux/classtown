@@ -24,7 +24,16 @@ supabase/
 ## 요구 사항
 
 - Node >= 22
-- pnpm 11 (`package.json`의 `packageManager`에 고정됨)
+- pnpm 11 (`package.json`의 `packageManager`에 고정됨) — Corepack으로 버전을 맞춘다:
+  ```sh
+  corepack enable
+  corepack prepare pnpm@11.25.0 --activate
+  ```
+
+macOS/Windows 어느 쪽에서 개발하든 동일하게 동작한다. 이 저장소에는 별도의 네이티브
+빌드 도구(Xcode Command Line Tools, Visual Studio Build Tools)가 필요 없다. 더 자세한
+설치/실행 절차와 두 OS 사이에 실제로 다른 부분은
+[`docs/development/setup.md`](./docs/development/setup.md) 참고.
 
 ## 설치
 

@@ -21,6 +21,7 @@ Every document states a **Status** at the top:
 
 | Path | Covers |
 |---|---|
+| [`development/`](./development/setup.md) | Local development setup: prerequisites, install, env vars, running (macOS + Windows) |
 | [`architecture/`](./architecture/overview.md) | System-wide architecture: apps, packages, data flow, auth flow |
 | [`game/`](./game/) | Gameplay: movement, map, tutorial, modes, cheat mode, economy, inventory, house, events, seasons |
 | [`teacher/`](./teacher/teacher.md) | Teacher-facing features: authentication, profile, classroom, room, game control |
