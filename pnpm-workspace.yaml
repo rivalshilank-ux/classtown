@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   esbuild: true
   msgpackr-extract: true
+  supabase: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@supabase/auth-js@2.115.0'

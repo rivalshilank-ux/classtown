@@ -1,10 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "./database.types";
 
-/**
- * Browser-side Supabase client factory. Structure only — no auth flow
- * is wired up yet (that starts in Phase 1); this just centralizes env
- * var access so later work doesn't touch this plumbing again.
- */
+/** Browser-side Supabase client factory, for Client Components. */
 export function createSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,5 +12,5 @@ export function createSupabaseBrowserClient() {
     );
   }
 
-  return createBrowserClient(url, anonKey);
+  return createBrowserClient<Database>(url, anonKey);
 }

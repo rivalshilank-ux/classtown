@@ -1,15 +1,9 @@
 import "server-only";
 import type { TeacherAccount } from "@classtown/shared-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Tables } from "@/lib/supabase/database.types";
 
-interface TeacherAccountRow {
-  id: string;
-  name: string;
-  school_name: string;
-  email: string;
-  created_at: string;
-  updated_at: string;
-}
+type TeacherAccountRow = Tables<"teacher_accounts">;
 
 function mapRow(row: TeacherAccountRow, emailVerified: boolean): TeacherAccount {
   return {
@@ -46,7 +40,7 @@ export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
 
   const { data: profile, error } = await supabase
     .from("teacher_accounts")
-    .select("id, name, school_name, email, created_at, updated_at")
+    .select("id, name, school_name, email, role, created_at, updated_at")
     .eq("id", user.id)
     .single();
 
