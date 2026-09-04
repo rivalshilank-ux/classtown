@@ -1,0 +1,15 @@
+{
+  "name": "@classtown/config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./eslint/base": "./eslint/base.mjs"
+  },
+  "dependencies": {
+    "@eslint/js": "10.0.1",
+    "typescript-eslint": "8.69.0",
+    "eslint": "9.39.5"
+  }
+}

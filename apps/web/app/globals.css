@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/*
+ * @classtown/ui lives outside this app's default source scan (it's a
+ * separate workspace package under node_modules), so it needs an
+ * explicit @source to be included in Tailwind's class detection.
+ */
+@source "../../../packages/ui/src";
+
+/*
+ * Placeholder theme values — must stay in sync with
+ * packages/ui/src/tokens/colors.ts until a build-time token generator
+ * replaces manual duplication. Provisional pending the Figma design
+ * system.
+ */
+@theme {
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-neutral-50: #fafaf9;
+  --color-neutral-100: #f0efed;
+  --color-neutral-200: #e5e3e0;
+  --color-neutral-900: #1c1917;
+}
+
+body {
+  background-color: var(--color-neutral-50);
+  color: var(--color-neutral-900);
+}

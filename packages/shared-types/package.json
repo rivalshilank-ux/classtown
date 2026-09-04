@@ -1,0 +1,19 @@
+{
+  "name": "@classtown/shared-types",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@classtown/config": "workspace:*",
+    "@types/node": "26.4.1",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@classtown/game-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@classtown/shared-schema": "workspace:*",
+    "@classtown/shared-types": "workspace:*",
+    "@colyseus/core": "0.16.24",
+    "@colyseus/schema": "3.0.76",
+    "@colyseus/ws-transport": "0.16.5",
+    "express": "5.2.1"
+  },
+  "devDependencies": {
+    "@classtown/config": "workspace:*",
+    "@types/express": "5.0.6",
+    "@types/node": "26.4.1",
+    "colyseus.js": "0.16.22",
+    "eslint": "9.39.5",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
