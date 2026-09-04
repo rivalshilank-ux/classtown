@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@classtown/game-client": "workspace:*",
     "@classtown/i18n": "workspace:*",
     "@classtown/shared-types": "workspace:*",
     "@classtown/ui": "workspace:*",

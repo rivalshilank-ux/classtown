@@ -1,0 +1,27 @@
+{
+  "name": "@classtown/game-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@classtown/shared-schema": "workspace:*",
+    "colyseus.js": "0.16.22",
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@classtown/config": "workspace:*",
+    "@classtown/game-server": "workspace:*",
+    "@types/node": "26.4.1",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
