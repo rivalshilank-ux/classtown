@@ -56,14 +56,14 @@ export function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-sky-light">
       <Header />
       <main className="flex flex-1 flex-col items-center justify-center gap-6 p-4">
         <div className="flex w-full max-w-sm flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold text-neutral-900 sm:text-3xl">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl text-ink-900">
             {t("auth.login.title")}
           </h1>
-          <p className="text-sm text-neutral-600">{t("auth.login.subtitle")}</p>
+          <p className="text-sm text-ink-600">{t("auth.login.subtitle")}</p>
         </div>
 
         <Card className="max-w-sm">
@@ -95,11 +95,11 @@ export function LoginForm() {
           </form>
         </Card>
 
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-ink-600">
           {t("auth.login.noAccountPrompt")}{" "}
           <Link
             href="/signup"
-            className="rounded font-medium text-brand-700 hover:text-brand-800 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2"
+            className="rounded-sm font-medium text-wood-800 underline decoration-wood-600 decoration-2 underline-offset-2 hover:text-wood-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
           >
             {t("auth.login.signupLink")}
           </Link>

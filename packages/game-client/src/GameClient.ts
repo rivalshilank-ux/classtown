@@ -35,7 +35,7 @@ export function createGameClient(
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: container,
-        backgroundColor: "#0f172a",
+        backgroundColor: "#5c9c43",
         scale: {
           mode: Phaser.Scale.RESIZE,
           autoCenter: Phaser.Scale.CENTER_BOTH,

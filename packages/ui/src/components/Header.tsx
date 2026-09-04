@@ -7,7 +7,7 @@ export interface HeaderProps {
 
 export function Header({ children }: HeaderProps) {
   return (
-    <header className="flex w-full items-center justify-between px-4 py-4 sm:px-6">
+    <header className="flex w-full items-center justify-between border-b-4 border-wood-900 bg-wood-700 px-4 py-3 sm:px-6">
       <Logo href="/" />
       {children}
     </header>

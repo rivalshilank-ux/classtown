@@ -8,7 +8,7 @@ import {
   type MoveIntentInput,
 } from "@classtown/shared-schema";
 
-const MOVE_SPEED = 4;
+const MOVE_SPEED = 160;
 const SIMULATION_INTERVAL_MS = 1000 / 20;
 
 export class TownRoom extends Room<TownRoomState> {

@@ -55,36 +55,43 @@ function ErrorIcon() {
 
 const VARIANT_CONFIG: Record<
   AlertProps["variant"],
-  { classes: string; role: "status" | "alert"; icon: ReactNode }
+  { border: string; icon: string; role: "status" | "alert"; iconEl: ReactNode }
 > = {
   info: {
-    classes: "border-sky-200 bg-sky-50 text-sky-800",
+    border: "border-l-sky-light",
+    icon: "text-[#2d7a94]",
     role: "status",
-    icon: <InfoIcon />,
+    iconEl: <InfoIcon />,
   },
   success: {
-    classes: "border-green-200 bg-green-50 text-green-700",
+    border: "border-l-good",
+    icon: "text-good",
     role: "status",
-    icon: <SuccessIcon />,
+    iconEl: <SuccessIcon />,
   },
   warning: {
-    classes: "border-amber-200 bg-amber-50 text-amber-800",
+    border: "border-l-accent-500",
+    icon: "text-accent-600",
     role: "alert",
-    icon: <WarningIcon />,
+    iconEl: <WarningIcon />,
   },
   error: {
-    classes: "border-red-200 bg-red-50 text-red-700",
+    border: "border-l-bad",
+    icon: "text-bad",
     role: "alert",
-    icon: <ErrorIcon />,
+    iconEl: <ErrorIcon />,
   },
 };
 
 export function Alert({ variant, children }: AlertProps) {
-  const { classes, role, icon } = VARIANT_CONFIG[variant];
+  const { border, icon, role, iconEl } = VARIANT_CONFIG[variant];
 
   return (
-    <div role={role} className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${classes}`}>
-      {icon}
+    <div
+      role={role}
+      className={`flex items-start gap-2 border-2 border-l-8 border-wood-600 bg-cream-400 px-4 py-3 text-sm text-ink-900 ${border}`}
+    >
+      <span className={icon}>{iconEl}</span>
       <span>{children}</span>
     </div>
   );

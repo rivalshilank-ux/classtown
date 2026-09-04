@@ -7,13 +7,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-brand-700 text-white hover:bg-brand-800",
-  secondary: "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
-  ghost: "bg-transparent text-neutral-900 hover:bg-neutral-100",
+  primary:
+    "border-ink-900 bg-accent-500 text-ink-900 shadow-[0_4px_0_0_#3a2415] hover:bg-accent-600 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415]",
+  secondary:
+    "border-wood-900 bg-wood-600 text-cream-400 shadow-[0_4px_0_0_#3a2415] hover:bg-wood-700 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415]",
+  ghost:
+    "border-transparent bg-transparent text-ink-900 hover:border-wood-400 hover:bg-cream-500",
 };
 
 const FOCUS_RING =
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700 focus-visible:ring-offset-2";
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-400";
 
 function Spinner() {
   return (
@@ -49,8 +52,9 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const classes = [
-    "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors",
-    "disabled:cursor-not-allowed disabled:opacity-60",
+    "pixel-corners inline-flex items-center justify-center gap-2 border-2 px-5 py-2.5",
+    "font-[family-name:var(--font-display)] text-sm tracking-wide transition-[transform,box-shadow,background-color]",
+    "disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none disabled:translate-y-0",
     FOCUS_RING,
     VARIANT_CLASSES[variant],
     className,

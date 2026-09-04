@@ -3,17 +3,69 @@
 @source "../../../packages/ui/src";
 
 @theme {
-  --color-brand-500: #f97316;
-  --color-brand-600: #ea580c;
-  --color-brand-700: #c2410c;
-  --color-brand-800: #9a3412;
-  --color-neutral-50: #fafaf9;
-  --color-neutral-100: #f0efed;
-  --color-neutral-200: #e5e3e0;
-  --color-neutral-900: #1c1917;
+  --color-wood-900: #3a2415;
+  --color-wood-800: #5c3820;
+  --color-wood-700: #7d4c28;
+  --color-wood-600: #a06a3a;
+  --color-wood-400: #c99457;
+  --color-wood-200: #e6c692;
+
+  --color-cream-400: #fbf3e3;
+  --color-cream-500: #f6ecd6;
+  --color-cream-600: #e8d6ab;
+
+  --color-chalk-900: #22332a;
+  --color-chalk-700: #2f4a3b;
+
+  --color-grass: #5c9c43;
+  --color-grass-dark: #3f7530;
+  --color-sky: #8fd3e8;
+  --color-sky-light: #d3f0f7;
+  --color-stone: #9b9488;
+
+  --color-ink-900: #2a2015;
+  --color-ink-600: #6b5a42;
+
+  --color-accent-500: #e8a13a;
+  --color-accent-600: #c97f1f;
+
+  --color-good: #3f7530;
+  --color-bad: #b8452f;
+
+  --font-display: var(--font-do-hyeon), "Do Hyeon", sans-serif;
+  --font-body: var(--font-noto-sans-kr), "Noto Sans KR", system-ui, sans-serif;
 }
 
 body {
-  background-color: var(--color-neutral-50);
-  color: var(--color-neutral-900);
+  background-color: var(--color-cream-400);
+  color: var(--color-ink-900);
+  font-family: var(--font-body);
+}
+
+/* Stair-stepped corners: the base primitive every pixel-framed surface
+   (buttons, panels, badges) shares so the "pixel grid" reads as one system. */
+.pixel-corners {
+  clip-path: polygon(
+    0 4px, 4px 4px, 4px 0,
+    calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px,
+    100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%,
+    4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)
+  );
+}
+
+.pixel-corners-sm {
+  clip-path: polygon(
+    0 2px, 2px 2px, 2px 0,
+    calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px,
+    100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%,
+    2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

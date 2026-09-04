@@ -44,14 +44,14 @@ function EntryScreen({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-sky-light">
       <Header />
       <main className="flex flex-1 flex-col items-center justify-center gap-6 p-4">
         <div className="flex w-full max-w-sm flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold text-neutral-900 sm:text-3xl">
+          <h1 className="font-[family-name:var(--font-display)] text-2xl text-ink-900 sm:text-3xl">
             닉네임을 입력하고 입장하세요
           </h1>
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-ink-600">
             계정 없이 바로 게스트로 플레이할 수 있어요.
           </p>
         </div>
@@ -109,14 +109,18 @@ export function GameCanvas() {
   const showOverlay = status !== "joined";
 
   return (
-    <div className="relative h-screen w-screen">
+    <div className="relative h-screen w-screen bg-ink-900">
       <div ref={containerRef} className="h-full w-full" />
-      <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-white/90 px-2 py-1 shadow-sm">
+      <div className="pixel-corners-sm pointer-events-none absolute left-3 top-3 z-10 border-2 border-ink-900 bg-wood-800/95 px-2 py-1">
         <Logo size="sm" />
       </div>
       {showOverlay && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-neutral-900/60 text-white">
-          <p>{error ?? STATUS_LABEL[status]}</p>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-900/70">
+          <div className="pixel-corners border-4 border-wood-900 bg-cream-500 px-6 py-4 text-center shadow-[0_5px_0_0_#3a2415]">
+            <p className="font-[family-name:var(--font-display)] text-base text-ink-900">
+              {error ?? STATUS_LABEL[status]}
+            </p>
+          </div>
         </div>
       )}
     </div>

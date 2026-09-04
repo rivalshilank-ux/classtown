@@ -4,4 +4,7 @@ export * from "./components/Alert";
 export * from "./components/Logo";
 export * from "./components/Header";
 export * from "./components/Card";
+export * from "./components/Panel";
+export * from "./components/Badge";
+export * from "./components/PixelIcon";
 export * from "./tokens/colors";

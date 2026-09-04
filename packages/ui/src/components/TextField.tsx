@@ -11,8 +11,8 @@ export function TextField({ label, error, className, ...rest }: TextFieldProps) 
   const errorId = `${id}-error`;
 
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-neutral-900">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-ink-900">
         {label}
       </label>
       <input
@@ -20,9 +20,9 @@ export function TextField({ label, error, className, ...rest }: TextFieldProps) 
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         className={[
-          "rounded-lg border px-3 py-2 text-sm outline-none transition-colors",
-          "focus:ring-2 focus:ring-brand-700",
-          error ? "border-red-500" : "border-neutral-200",
+          "border-2 bg-cream-400 px-3 py-2 text-sm text-ink-900 outline-none transition-colors placeholder:text-ink-600/60",
+          "focus:border-accent-600 focus:ring-2 focus:ring-accent-600/40",
+          error ? "border-bad" : "border-wood-600",
           className,
         ]
           .filter(Boolean)
@@ -30,7 +30,7 @@ export function TextField({ label, error, className, ...rest }: TextFieldProps) 
         {...rest}
       />
       {error && (
-        <p id={errorId} role="alert" className="text-sm text-red-600">
+        <p id={errorId} role="alert" className="text-sm font-medium text-bad">
           {error}
         </p>
       )}

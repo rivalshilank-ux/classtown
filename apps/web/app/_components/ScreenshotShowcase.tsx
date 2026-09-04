@@ -25,7 +25,7 @@ const SCREENSHOTS: Screenshot[] = [
 function ScreenshotCard({ src, alt, caption }: Screenshot) {
   return (
     <figure className="flex flex-col gap-3">
-      <div className="overflow-hidden rounded-2xl bg-neutral-100 shadow-xl sm:rounded-3xl">
+      <div className="pixel-corners overflow-hidden border-4 border-wood-900 bg-cream-500 shadow-[0_5px_0_0_#3a2415]">
         <img
           src={src}
           alt={alt}
@@ -34,7 +34,9 @@ function ScreenshotCard({ src, alt, caption }: Screenshot) {
           className="h-auto w-full"
         />
       </div>
-      <figcaption className="text-center text-sm text-neutral-600">{caption}</figcaption>
+      <figcaption className="text-center font-[family-name:var(--font-display)] text-sm text-ink-600">
+        {caption}
+      </figcaption>
     </figure>
   );
 }
@@ -43,13 +45,13 @@ export function ScreenshotShowcase() {
   const [main, ...rest] = SCREENSHOTS;
 
   return (
-    <section className="px-4 py-24 sm:py-32">
-      <div className="mx-auto flex max-w-5xl flex-col gap-16">
+    <section className="bg-wood-800 px-4 py-20 sm:py-24">
+      <div className="mx-auto flex max-w-5xl flex-col gap-12">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
+          <h2 className="font-[family-name:var(--font-display)] text-3xl text-cream-400 sm:text-4xl">
             실제 화면 그대로
           </h2>
-          <p className="mt-3 text-lg text-neutral-600">
+          <p className="mt-3 text-base text-cream-400/80">
             과장된 목업이 아닌, 지금 배포되어 있는 화면입니다.
           </p>
         </div>

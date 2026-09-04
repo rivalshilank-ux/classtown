@@ -6,7 +6,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Card({ className, children, ...rest }: CardProps) {
   const classes = [
-    "w-full rounded-xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8",
+    "pixel-corners w-full border-4 border-wood-900 bg-cream-500 p-6 shadow-[0_6px_0_0_#3a2415] sm:p-8",
     className,
   ]
     .filter(Boolean)
