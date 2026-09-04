@@ -7,18 +7,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@classtown/game-client": "workspace:*",
     "@classtown/i18n": "workspace:*",
+    "@classtown/shared-schema": "workspace:*",
     "@classtown/shared-types": "workspace:*",
     "@classtown/ui": "workspace:*",
     "@supabase/ssr": "0.12.5",
     "@supabase/supabase-js": "2.115.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@classtown/config": "workspace:*",
@@ -29,6 +33,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "4.3.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
   }
 }

@@ -28,7 +28,7 @@ export function createBaseConfig(tsconfigRootDir) {
       // configs (e.g. eslint-config-next) may swap the parser for these files
       // too — turning off type-checked rules here (not just relying on
       // parserOptions) is what survives that override.
-      files: ["**/*.config.{js,mjs,cjs,ts}"],
+      files: ["**/*.config.{js,mjs,cjs,ts,mts,cts}"],
       ...tseslint.configs.disableTypeChecked,
     },
     {

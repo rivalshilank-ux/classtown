@@ -8,14 +8,17 @@ Colyseus 기반 authoritative 게임 서버, Next.js 웹앱, 공유 패키지들
 ```
 apps/
   game-server/   Colyseus 서버 — authoritative room/state/시뮬레이션
-  web/           Next.js 앱 (Supabase 인증 클라이언트 구조만 존재, 아직 연결 안 됨)
+  web/           Next.js 앱 — Phaser 게임 클라이언트 마운트(/play) + 교사 인증(/login, /signup, /teacher)
 packages/
+  game-client/   Phaser 게임 클라이언트 — Colyseus 연결, 입력, TownRoom 렌더링
   shared-schema/ 서버-클라이언트가 공유하는 런타임 상태(Colyseus @colyseus/schema)
-                 + zod 메시지 스키마. dist/로 빌드되는 유일한 패키지 (아래 참고).
+                 + zod 메시지/인증 스키마. dist/로 빌드되는 유일한 패키지 (아래 참고).
   shared-types/  앱 전반에서 공유하는 순수 TypeScript 타입 (런타임 코드 없음)
   ui/            공유 React 컴포넌트 (Tailwind 기반)
   i18n/          번역 사전 (기본 ko, en/ja/zh 지원)
   config/        공유 tsconfig base + ESLint base 설정
+supabase/
+  migrations/    Supabase Postgres 마이그레이션 (SQL)
 ```
 
 ## 요구 사항
@@ -33,6 +36,20 @@ pnpm install
 
 - `apps/game-server/.env.example`
 - `apps/web/.env.example`
+
+### Supabase 프로젝트 설정 (교사 인증에 필요)
+
+1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만든다.
+2. 프로젝트 Settings → API에서 Project URL과 anon public key를 확인해
+   `apps/web/.env.local`의 `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`에 채운다.
+   (`SUPABASE_SERVICE_ROLE_KEY`는 현재 코드에서 사용하지 않는다 — 절대 커밋하지 말 것.)
+3. `supabase/migrations/`의 SQL을 Supabase Studio의 SQL Editor에 붙여넣어 실행하거나,
+   Supabase CLI가 있다면 `supabase db push`로 적용한다. 이 마이그레이션이
+   `teacher_accounts` 테이블, RLS 정책, 그리고 회원가입 시 프로필을 자동 생성하는
+   트리거를 만든다.
+4. (선택) Authentication → Providers → Email에서 "Confirm email" 설정을 프로젝트
+   정책에 맞게 켜거나 끈다 — 켜져 있으면 회원가입 후 이메일 인증이 필요하고, 꺼져
+   있으면 가입 즉시 로그인된다. 코드는 두 경우 모두 올바르게 동작한다.
 
 ## 주요 명령어
 
@@ -59,13 +76,22 @@ pnpm --filter @classtown/shared-schema build
 
 ## 현재 상태
 
-**Phase 0** — 스캐폴드 + 최소한의 authoritative `TownRoom`:
+**Phase 0** — 스캐폴드 + 최소한의 authoritative `TownRoom`, Phaser 게임 클라이언트(`/play`):
 
 - 검증된 입장 로직 (`onAuth` + zod `joinRoomOptionsSchema`)
 - 서버 authoritative 이동: 클라이언트는 정규화된 `{ dx, dy }` 이동 의도만 전송하고,
   서버가 고정 20Hz 시뮬레이션을 돌려 `PlayerState.x/y`를 직접 결정한 뒤
   Colyseus state sync로 모든 클라이언트에 동기화
-- 실제 Colyseus 서버를 띄우고 실제 `colyseus.js` 클라이언트로 접속하는 통합 테스트로 검증됨
+- `packages/game-client`(Phaser)가 `apps/web`의 `/play`에 마운트되어 키보드 입력 →
+  이동 의도 전송 → 서버 시뮬레이션 → 상태 동기화 → 화면 렌더링까지 실제로 동작
 
-아직 구현되지 않음: 실제 joinCode 검증, Supabase 인증, Phaser 게임 클라이언트,
-맵/충돌, NPC, 상점/인벤토리, 경제, 이벤트, 채팅, 교사/관리자 대시보드.
+**Phase 1** — Supabase 기반 교사 인증:
+
+- 교사 회원가입(`/signup`)·로그인(`/login`)·로그아웃, 세션 기반 라우트 보호(`/teacher`)
+- 비밀번호는 Supabase Auth만 관리 — `teacher_accounts`에는 프로필 정보만 저장
+- Row Level Security로 교사는 자신의 프로필만 읽고 쓸 수 있음 (자세한 내용은
+  `docs/adr/0001-teacher-authentication.md` 참고)
+- 학생은 여전히 코드 기반 참가(별도 계정 없음) — 실제 참가 코드 검증은 다음 Phase
+
+아직 구현되지 않음: 실제 joinCode 검증, 맵/충돌, NPC, 상점/인벤토리, 경제, 이벤트,
+채팅, 교사/관리자 대시보드, 학생 인증.

@@ -16,6 +16,7 @@ export interface TeacherAccount extends BaseAccount {
   schoolName: string;
   email: string;
   emailVerified: boolean;
+  updatedAt: string;
 }
 
 /**
