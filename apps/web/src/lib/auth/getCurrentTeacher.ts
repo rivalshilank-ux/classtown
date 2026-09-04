@@ -18,15 +18,6 @@ function mapRow(row: TeacherAccountRow, emailVerified: boolean): TeacherAccount 
   };
 }
 
-/**
- * The one place that decides "who is the current teacher". Combines the
- * Supabase Auth user (source of truth for whether a session exists at
- * all, and for email-verification status) with the teacher_accounts
- * profile row. The query is explicitly scoped to the caller's own id —
- * RLS enforces the same boundary at the database level, this is
- * defense in depth, not the only thing standing between a teacher and
- * someone else's profile.
- */
 export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
   const supabase = await createSupabaseServerClient();
 

@@ -62,9 +62,6 @@ describe("TownRoom move", () => {
     const room = await client.joinOrCreate<TownRoomState>("town", JOIN_OPTIONS);
 
     room.send("move", { dx: 5, dy: 5 });
-    // No state-change signal to await for a message that should be a
-    // no-op — give the simulation loop a couple of ticks, then assert
-    // nothing moved.
     await sleep(150);
 
     const player = room.state.players.get(room.sessionId);

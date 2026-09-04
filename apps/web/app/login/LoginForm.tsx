@@ -33,9 +33,6 @@ export function LoginForm() {
       password: formData.get("password"),
     };
 
-    // Fast client-side feedback using the same schema the server
-    // re-validates with — skip the network round trip if it's already
-    // invalid, but never treat this as the enforcement point.
     const clientCheck = teacherLoginSchema.safeParse(input);
     if (!clientCheck.success) {
       setFieldErrors(toFieldErrors(clientCheck.error));

@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The real `server-only` package throws unless it detects Next's own
-// bundler — harmless in production, but it would also throw here under
-// plain vitest, so it's stubbed out for this test only.
 vi.mock("server-only", () => ({}));
 
 const mockGetUser = vi.fn();

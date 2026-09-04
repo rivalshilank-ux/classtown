@@ -79,10 +79,6 @@ const VARIANT_CONFIG: Record<
   },
 };
 
-/**
- * Status banner shared across forms. Always pairs an icon with the
- * variant's color so the state isn't carried by color alone.
- */
 export function Alert({ variant, children }: AlertProps) {
   const { classes, role, icon } = VARIANT_CONFIG[variant];
 

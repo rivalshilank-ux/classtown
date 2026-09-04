@@ -2,14 +2,10 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost";
-  /** Shows a spinner and disables the button — use for an in-flight async action, never toggle `disabled` separately for that. */
   isLoading?: boolean;
   children: ReactNode;
 }
 
-// primary uses 700/800, not 500/600 — white text on 500/600 measures
-// 2.80:1 / 3.56:1, both below WCAG AA's 4.5:1 for normal text; 700/800
-// measure 5.18:1 / 7.31:1.
 const VARIANT_CLASSES: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary: "bg-brand-700 text-white hover:bg-brand-800",
   secondary: "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
@@ -44,11 +40,6 @@ function Spinner() {
   );
 }
 
-/**
- * Base button shared by the game HUD, teacher dashboard, and admin
- * dashboard, so all three surfaces render from one component instead
- * of drifting into separate ad-hoc button styles.
- */
 export function Button({
   variant = "primary",
   isLoading = false,

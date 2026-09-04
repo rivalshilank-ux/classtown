@@ -1,6 +1,3 @@
-// Auto-generated from the live schema — do not hand-edit.
-// Regenerate with: npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
-
 export type Json =
   | string
   | number

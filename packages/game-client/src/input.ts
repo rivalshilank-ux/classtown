@@ -14,12 +14,6 @@ export const IDLE_KEY_STATE: DirectionKeyState = {
   right: false,
 };
 
-/**
- * Turns raw direction key state into a move intent. The server is the
- * final authority on speed and position (see TownRoom#movePlayers) — this
- * only decides direction. Diagonal input is normalized here too, so a
- * client is never relying on the server as the only place that happens.
- */
 export function computeMoveIntent(keys: DirectionKeyState): MoveIntentInput {
   const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
   const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);

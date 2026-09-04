@@ -4,13 +4,6 @@ import { updateSession } from "@/lib/supabase/middleware";
 const PROTECTED_PREFIXES = ["/teacher"];
 const AUTH_PAGES = ["/login", "/signup"];
 
-/**
- * Runs on every request (except static assets, via `matcher` below).
- * Refreshes the Supabase session cookie and enforces route protection
- * server-side — a logged-out visitor is redirected before /teacher's
- * page component ever runs, and the page itself independently checks
- * auth again (see getCurrentTeacher) rather than relying on this alone.
- */
 export async function proxy(request: NextRequest) {
   const { response, user } = await updateSession(request);
   const { pathname } = request.nextUrl;

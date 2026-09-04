@@ -26,15 +26,6 @@ async function waitFor(
   throw new Error(`Condition not met within ${timeoutMs}ms`);
 }
 
-/**
- * Runs game-client's connection + move-sending code against a real
- * game-server (the same `createGameServer` apps/game-server's own
- * integration tests use), not a mock — this is what proves the
- * Keyboard -> Move Intent -> Colyseus -> TownRoom -> PlayerState chain
- * actually works end to end from the client side. Phaser rendering
- * itself isn't covered here (see the report for why) — this only covers
- * connection/state, which is everything short of drawing pixels.
- */
 describe("game-client connection integration", () => {
   let server: ReturnType<typeof createGameServer>;
   let endpoint: string;

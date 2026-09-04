@@ -1,5 +1,4 @@
 export interface LogoProps {
-  /** Renders as a link (plain `<a>` — this package doesn't depend on a router) when given. */
   href?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -17,11 +16,6 @@ const MARK_SIZE_CLASSES: Record<NonNullable<LogoProps["size"]>, string> = {
   lg: "h-9 w-9 text-base",
 };
 
-/**
- * ClassTown wordmark + mark. The one visual element every auth/teacher
- * screen shares with the game — without this, a teacher landing on
- * /login has nothing telling them which product they're looking at.
- */
 export function Logo({ href, size = "md", className }: LogoProps) {
   const wordmark = (
     <span

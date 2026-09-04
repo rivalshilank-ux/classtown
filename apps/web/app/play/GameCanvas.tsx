@@ -16,12 +16,6 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
   disconnected: "연결이 끊어졌습니다.",
 };
 
-/**
- * Placeholder join identity — a real join form (and real joinCode
- * validation) is out of scope for this phase. A random nickname per tab
- * is enough to see multiple players sync in the same room during manual
- * testing.
- */
 function useGuestNickname() {
   const [nickname] = useState(() => `Guest-${Math.floor(Math.random() * 10000)}`);
   return nickname;
@@ -56,7 +50,6 @@ export function GameCanvas() {
   return (
     <div className="relative h-screen w-screen">
       <div ref={containerRef} className="h-full w-full" />
-      {/* Ties the game view back to the same brand as the teacher screens — otherwise nothing here says "ClassTown" at all. */}
       <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-white/90 px-2 py-1 shadow-sm">
         <Logo size="sm" />
       </div>

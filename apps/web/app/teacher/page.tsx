@@ -4,16 +4,8 @@ import { DEFAULT_LOCALE, translate } from "@classtown/i18n";
 import { getCurrentTeacher } from "@/lib/auth/getCurrentTeacher";
 import { LogoutButton } from "./LogoutButton";
 
-// Every response here is scoped to whichever teacher is logged in — it
-// must never be statically generated/cached and served to someone else.
 export const dynamic = "force-dynamic";
 
-/**
- * proxy.ts already redirects unauthenticated requests away from here,
- * but that's routing, not proof — this checks auth again from the page
- * itself so access doesn't depend on the proxy matcher never being
- * misconfigured.
- */
 export default async function TeacherPage() {
   const teacher = await getCurrentTeacher();
 

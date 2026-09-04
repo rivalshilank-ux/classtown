@@ -2,10 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 
-/**
- * Server-side Supabase client factory for Server Components, Route
- * Handlers, and Server Actions.
- */
 export async function createSupabaseServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -29,8 +25,7 @@ export async function createSupabaseServerClient() {
             cookieStore.set(name, value, options);
           }
         } catch {
-          // Called from a Server Component with no request context to
-          // mutate — safe to ignore when middleware refreshes sessions.
+          return;
         }
       },
     },

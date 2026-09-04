@@ -11,11 +11,6 @@ const KEY_TO_DIRECTION: Record<string, keyof DirectionKeyState> = {
   KeyD: "right",
 };
 
-/**
- * Pure reducer: applies one key press/release to a direction key state.
- * Exported separately from KeyboardInput so this logic is testable
- * without a DOM — KeyboardInput itself is just event-listener wiring.
- */
 export function applyKeyChange(
   state: DirectionKeyState,
   code: string,
@@ -28,7 +23,6 @@ export function applyKeyChange(
   return { ...state, [direction]: isDown };
 }
 
-/** Tracks WASD / arrow key state from real keyboard events. */
 export class KeyboardInput {
   private state: DirectionKeyState = IDLE_KEY_STATE;
   private readonly target: EventTarget;

@@ -14,15 +14,6 @@ export interface TownSceneData {
   keyboard: KeyboardInput;
 }
 
-/**
- * Placeholder rendering only — real sprites, map, and animation are a
- * later phase. Each player is a plain circle so multi-client sync is
- * visually obvious without any art: local player one color, everyone
- * else another.
- *
- * Position is never set locally from input — a circle only ever moves
- * because `PlayerState.x/y` (authoritative, server-computed) changed.
- */
 export class TownScene extends Phaser.Scene {
   private room!: Room<TownRoomState>;
   private keyboard!: KeyboardInput;

@@ -1,12 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/**
- * Refreshes the Supabase session cookie for the current request and
- * returns the authenticated user (if any). This is the only place a
- * user's auth state is read for routing decisions — middleware.ts uses
- * the returned `user` to redirect, it never trusts a client-side flag.
- */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 

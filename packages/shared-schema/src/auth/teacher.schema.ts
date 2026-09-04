@@ -1,13 +1,5 @@
 import { z } from "zod";
 
-/**
- * Shared between the signup form (client-side feedback) and the signup
- * Server Action (the actual enforcement point) so the rule is defined
- * once. Messages are in Korean because that's the only UI language this
- * app currently ships (see apps/web's hardcoded `<html lang="ko">`) —
- * this isn't routed through @classtown/i18n like static labels are,
- * since nothing else in this schema package localizes messages either.
- */
 const passwordSchema = z
   .string()
   .min(8, "비밀번호는 8자 이상이어야 합니다.")

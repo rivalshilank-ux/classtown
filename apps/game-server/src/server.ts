@@ -4,10 +4,6 @@ import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { TownRoom } from "./rooms/TownRoom.js";
 
-/**
- * Builds the game server without starting it, so tests can bind it to an
- * ephemeral port instead of the real one `index.ts` listens on.
- */
 export function createGameServer() {
   const app = express();
 

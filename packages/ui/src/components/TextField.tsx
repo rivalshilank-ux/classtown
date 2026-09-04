@@ -6,11 +6,6 @@ export interface TextFieldProps
   error?: string;
 }
 
-/**
- * Labeled input with an inline error slot. Shared by every auth form so
- * label association, invalid-state styling, and error announcement stay
- * consistent instead of being reimplemented per form.
- */
 export function TextField({ label, error, className, ...rest }: TextFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
