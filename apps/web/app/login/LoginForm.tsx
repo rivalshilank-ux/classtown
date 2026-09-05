@@ -108,6 +108,15 @@ export function LoginForm() {
             {t("auth.login.signupLink")}
           </Link>
         </p>
+        <p className="text-sm text-ink-600">
+          학생이신가요?{" "}
+          <Link
+            href="/student"
+            className="rounded-sm font-medium text-wood-800 underline decoration-wood-600 decoration-2 underline-offset-2 hover:text-wood-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
+          >
+            학생으로 입장하기
+          </Link>
+        </p>
       </main>
     </div>
   );

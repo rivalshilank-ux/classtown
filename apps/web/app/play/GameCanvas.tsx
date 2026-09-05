@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createGameClient, type ConnectionStatus } from "@classtown/game-client";
-import { joinRoomOptionsSchema } from "@classtown/shared-schema";
+import {
+  joinRoomOptionsSchema,
+  type JoinRoomOptionsInput,
+} from "@classtown/shared-schema";
 import { Button, Card, Header, Logo, TextField } from "@classtown/ui";
+import { getStudentSession } from "@/lib/student/session";
 
 const GAME_SERVER_URL =
   process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? "ws://localhost:2567";
@@ -82,17 +86,24 @@ export function GameCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
-  const [nickname, setNickname] = useState<string | null>(null);
+  const [joinOptions, setJoinOptions] = useState<JoinRoomOptionsInput | null>(
+    () => {
+      const session = getStudentSession();
+      return session
+        ? { joinCode: session.classCode, nickname: session.nickname }
+        : null;
+    },
+  );
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || nickname === null) {
+    if (!container || joinOptions === null) {
       return;
     }
 
     const handle = createGameClient(container, {
       endpoint: GAME_SERVER_URL,
-      joinOptions: { joinCode: JOIN_CODE, nickname },
+      joinOptions,
       onStatusChange: setStatus,
       onError: setError,
     });
@@ -100,10 +111,14 @@ export function GameCanvas() {
     return () => {
       handle.destroy();
     };
-  }, [nickname]);
+  }, [joinOptions]);
 
-  if (nickname === null) {
-    return <EntryScreen onEnter={setNickname} />;
+  if (joinOptions === null) {
+    return (
+      <EntryScreen
+        onEnter={(nickname) => setJoinOptions({ joinCode: JOIN_CODE, nickname })}
+      />
+    );
   }
 
   const showOverlay = status !== "joined";

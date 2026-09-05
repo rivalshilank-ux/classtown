@@ -1,8 +1,14 @@
 import { z } from "zod";
 
 export const joinRoomOptionsSchema = z.object({
-  joinCode: z.string().min(4).max(12),
-  nickname: z.string().min(1).max(20),
+  joinCode: z
+    .string()
+    .min(4, "참가 코드는 4~12자로 입력해 주세요.")
+    .max(12, "참가 코드는 4~12자로 입력해 주세요."),
+  nickname: z
+    .string()
+    .min(1, "닉네임을 입력해 주세요.")
+    .max(20, "닉네임은 20자 이하로 입력해 주세요."),
 });
 
 export type JoinRoomOptionsInput = z.infer<typeof joinRoomOptionsSchema>;

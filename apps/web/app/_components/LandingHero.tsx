@@ -30,10 +30,10 @@ export function LandingHero() {
               교사로 시작하기
             </Link>
             <Link
-              href="/play"
+              href="/student"
               className="pixel-corners inline-flex items-center justify-center border-2 border-wood-900 bg-wood-600 px-6 py-3 font-[family-name:var(--font-display)] text-base text-cream-400 shadow-[0_4px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-wood-700 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-light"
             >
-              게스트로 바로 플레이
+              🎒 학생으로 시작하기
             </Link>
           </div>
         </div>
