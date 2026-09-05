@@ -40,6 +40,9 @@ export function PixelTownScene({ className }: PixelTownSceneProps) {
 
       <circle cx="30" cy="30" r="2.4" fill="#38bdf8" stroke="#3a2415" strokeWidth="0.5" />
       <circle cx="24" cy="32" r="2.4" fill="#94a3b8" stroke="#3a2415" strokeWidth="0.5" />
+      <circle cx="20" cy="29" r="2.4" fill="#f2735c" stroke="#3a2415" strokeWidth="0.5" />
+
+      <rect x="27.5" y="25.5" width="5" height="2.4" fill="#fbf3e3" stroke="#3a2415" strokeWidth="0.4" />
     </svg>
   );
 }

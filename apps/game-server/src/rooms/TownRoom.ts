@@ -1,8 +1,11 @@
 import { Client, Room, ServerError } from "@colyseus/core";
 import {
+  isSolidAtPixel,
   joinRoomOptionsSchema,
   moveIntentSchema,
+  PLAYER_RADIUS,
   PlayerState,
+  SPAWN_POINT,
   TownRoomState,
   type JoinRoomOptionsInput,
   type MoveIntentInput,
@@ -10,6 +13,19 @@ import {
 
 const MOVE_SPEED = 160;
 const SIMULATION_INTERVAL_MS = 1000 / 20;
+
+// Slightly smaller than the visual radius so movement doesn't visibly
+// stop short of a wall's edge.
+const COLLISION_RADIUS = PLAYER_RADIUS - 2;
+
+function canOccupy(x: number, y: number): boolean {
+  return (
+    !isSolidAtPixel(x - COLLISION_RADIUS, y - COLLISION_RADIUS) &&
+    !isSolidAtPixel(x + COLLISION_RADIUS, y - COLLISION_RADIUS) &&
+    !isSolidAtPixel(x - COLLISION_RADIUS, y + COLLISION_RADIUS) &&
+    !isSolidAtPixel(x + COLLISION_RADIUS, y + COLLISION_RADIUS)
+  );
+}
 
 export class TownRoom extends Room<TownRoomState> {
   maxClients = 40;
@@ -44,6 +60,8 @@ export class TownRoom extends Room<TownRoomState> {
     const player = new PlayerState();
     player.sessionId = client.sessionId;
     player.nickname = auth.nickname;
+    player.x = SPAWN_POINT.x;
+    player.y = SPAWN_POINT.y;
     this.state.players.set(client.sessionId, player);
     this.moveIntents.set(client.sessionId, { dx: 0, dy: 0 });
   }
@@ -68,8 +86,18 @@ export class TownRoom extends Room<TownRoomState> {
       }
 
       const scale = (MOVE_SPEED * deltaSeconds) / Math.max(magnitude, 1);
-      player.x += intent.dx * scale;
-      player.y += intent.dy * scale;
+
+      // Resolve each axis separately so the player slides along a wall
+      // instead of getting fully stopped by a diagonal collision.
+      const nextX = player.x + intent.dx * scale;
+      if (canOccupy(nextX, player.y)) {
+        player.x = nextX;
+      }
+
+      const nextY = player.y + intent.dy * scale;
+      if (canOccupy(player.x, nextY)) {
+        player.y = nextY;
+      }
     }
   }
 }

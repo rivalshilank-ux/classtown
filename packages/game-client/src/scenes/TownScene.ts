@@ -1,6 +1,18 @@
 import Phaser from "phaser";
 import { getStateCallbacks, type Room } from "colyseus.js";
-import type { TownRoomState, MoveIntentInput } from "@classtown/shared-schema";
+import {
+  LANDMARKS,
+  MAP_COLS,
+  MAP_GRID,
+  MAP_ROWS,
+  PLAYER_RADIUS,
+  TILE_SIZE,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  type MoveIntentInput,
+  type TileType,
+  type TownRoomState,
+} from "@classtown/shared-schema";
 import type { KeyboardInput } from "../KeyboardInput";
 import { computeMoveIntent, moveIntentsEqual } from "../input";
 import { sendMoveIntent } from "../moveSender";
@@ -8,7 +20,21 @@ import { sendMoveIntent } from "../moveSender";
 const LOCAL_PLAYER_COLOR = 0x38bdf8;
 const REMOTE_PLAYER_COLOR = 0x94a3b8;
 const PLAYER_OUTLINE_COLOR = 0x2a2015;
-const PLAYER_RADIUS = 16;
+
+const TILE_FILL: Record<TileType, number> = {
+  grass: 0x5c9c43,
+  wall: 0x7d4c28,
+  floor: 0xe6c692,
+  plaza: 0xc9bfa8,
+  tree: 0x3f7530,
+  bench: 0x7d4c28,
+  water: 0x6fc3d9,
+  fence: 0x3a2415,
+  counter: 0x5c3820,
+};
+
+const SOLID_TILE_OUTLINE = 0x2a2015;
+const GROUND_TEXTURE_KEY = "campus-ground";
 
 export interface TownSceneData {
   room: Room<TownRoomState>;
@@ -32,6 +58,8 @@ export class TownScene extends Phaser.Scene {
   }
 
   create() {
+    this.buildWorld();
+
     const $ = getStateCallbacks(this.room);
 
     $(this.room.state).players.onAdd((player, sessionId) => {
@@ -43,6 +71,7 @@ export class TownScene extends Phaser.Scene {
         isLocal ? LOCAL_PLAYER_COLOR : REMOTE_PLAYER_COLOR,
       );
       circle.setStrokeStyle(2, PLAYER_OUTLINE_COLOR);
+      circle.setDepth(10);
       this.circles.set(sessionId, circle);
 
       const label = this.add
@@ -53,8 +82,13 @@ export class TownScene extends Phaser.Scene {
           stroke: "#2a2015",
           strokeThickness: 3,
         })
-        .setOrigin(0.5, 1);
+        .setOrigin(0.5, 1)
+        .setDepth(11);
       this.labels.set(sessionId, label);
+
+      if (isLocal) {
+        this.cameras.main.startFollow(circle, true, 0.1, 0.1);
+      }
 
       $(player).listen("x", (value) => {
         circle.setPosition(value, circle.y);
@@ -80,5 +114,55 @@ export class TownScene extends Phaser.Scene {
       sendMoveIntent(this.room, intent);
       this.lastSentIntent = intent;
     }
+  }
+
+  private buildWorld() {
+    const graphics = this.make.graphics({}, false);
+
+    for (let row = 0; row < MAP_ROWS; row++) {
+      for (let col = 0; col < MAP_COLS; col++) {
+        const tile = MAP_GRID[row]![col]!;
+        const x = col * TILE_SIZE;
+        const y = row * TILE_SIZE;
+
+        graphics.fillStyle(TILE_FILL[tile], 1);
+        graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+        if (tile !== "grass" && tile !== "floor" && tile !== "plaza") {
+          graphics.lineStyle(2, SOLID_TILE_OUTLINE, 0.6);
+          graphics.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+        }
+
+        if (tile === "tree") {
+          graphics.fillStyle(0x5c3820, 1);
+          graphics.fillRect(x + TILE_SIZE / 2 - 3, y + TILE_SIZE - 10, 6, 10);
+        }
+      }
+    }
+
+    graphics.generateTexture(GROUND_TEXTURE_KEY, WORLD_WIDTH, WORLD_HEIGHT);
+    graphics.destroy();
+
+    this.add.image(0, 0, GROUND_TEXTURE_KEY).setOrigin(0, 0).setDepth(0);
+
+    for (const landmark of LANDMARKS) {
+      this.add
+        .text(
+          landmark.col * TILE_SIZE + TILE_SIZE / 2,
+          landmark.row * TILE_SIZE + TILE_SIZE / 2,
+          landmark.label,
+          {
+            fontFamily: "var(--font-display), sans-serif",
+            fontSize: "12px",
+            color: "#fbf3e3",
+            stroke: "#2a2015",
+            strokeThickness: 3,
+          },
+        )
+        .setOrigin(0.5, 0.5)
+        .setDepth(1);
+    }
+
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   }
 }

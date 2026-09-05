@@ -8,6 +8,7 @@ import { DEFAULT_LOCALE, translate, type TranslationKey } from "@classtown/i18n"
 import { teacherSignupSchema } from "@classtown/shared-schema";
 import { signUpTeacher } from "@/lib/auth/teacherActions";
 import { toFieldErrors } from "@/lib/auth/formErrors";
+import { PixelTownScene } from "../_components/PixelTownScene";
 
 function t(key: TranslationKey) {
   return translate(DEFAULT_LOCALE, key);
@@ -70,6 +71,9 @@ export function SignupForm() {
   return (
     <div className="flex min-h-screen flex-col bg-sky-light">
       <Header />
+      <div className="h-24 w-full bg-sky-light sm:h-32">
+        <PixelTownScene className="mx-auto h-full max-w-2xl" />
+      </div>
       <main className="flex flex-1 flex-col items-center justify-center gap-6 p-4 py-8">
         <div className="flex w-full max-w-sm flex-col items-center gap-1 text-center">
           <h1 className="font-[family-name:var(--font-display)] text-3xl text-ink-900">
