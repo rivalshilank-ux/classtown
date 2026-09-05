@@ -40,13 +40,17 @@ KeyboardInput (browser events)
   until the client sends its first real intent.
 - On leave, both the player's `PlayerState` and its stored intent are
   removed.
-- There is no collision detection, no map boundary clamp, and no
-  per-player speed variation — every player moves at the same
+- Collision against the campus map (see [`map.md`](./map.md)) is
+  server-authoritative: `TownRoom.canOccupy()` checks the four corners of
+  the player's collision box (`PLAYER_RADIUS - 2`, slightly smaller than
+  the visual radius) against `isSolidAtPixel()` before committing a move.
+  X and Y are resolved as two independent axis checks, so a player slides
+  along a wall instead of stopping dead on a diagonal collision.
+- There is no per-player speed variation — every player moves at the same
   `MOVE_SPEED`.
 
 ## Planned
 
-- Map boundaries and collision (see [`map.md`](./map.md)).
 - Any speed modifier tied to items, cheats, or game modes.
 
 ## Security
@@ -59,9 +63,10 @@ See [`../security/security.md`](../security/security.md).
 
 `apps/game-server/src/rooms/TownRoom.test.ts` covers: normal movement,
 invalid input (out-of-range and malformed messages are dropped),
-authoritative position (client-claimed position is never trusted), and
-multi-client synchronization. `packages/game-client/src/moveSender.test.ts`
-covers client-side intent validation.
+authoritative position (client-claimed position is never trusted),
+stopping at a solid wall, and multi-client synchronization.
+`packages/game-client/src/moveSender.test.ts` covers client-side intent
+validation.
 
 ## Related Documents
 

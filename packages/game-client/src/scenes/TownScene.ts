@@ -26,12 +26,30 @@ const TILE_FILL: Record<TileType, number> = {
   wall: 0x7d4c28,
   floor: 0xe6c692,
   plaza: 0xc9bfa8,
+  path: 0xd9c9a3,
   tree: 0x3f7530,
   bench: 0x7d4c28,
   water: 0x6fc3d9,
   fence: 0x3a2415,
+  gate: 0xe8a13a,
   counter: 0x5c3820,
+  desk: 0xc99457,
+  shelf: 0x5c3820,
+  lab_table: 0x9b9488,
+  piano: 0x1c1712,
+  goal: 0xfbf3e3,
+  track: 0xc1440e,
+  stage: 0xa06a3a,
 };
+
+const WALKABLE_TILES: ReadonlySet<TileType> = new Set([
+  "grass",
+  "floor",
+  "plaza",
+  "path",
+  "gate",
+  "track",
+]);
 
 const SOLID_TILE_OUTLINE = 0x2a2015;
 const GROUND_TEXTURE_KEY = "campus-ground";
@@ -128,14 +146,48 @@ export class TownScene extends Phaser.Scene {
         graphics.fillStyle(TILE_FILL[tile], 1);
         graphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
-        if (tile !== "grass" && tile !== "floor" && tile !== "plaza") {
+        if (!WALKABLE_TILES.has(tile)) {
           graphics.lineStyle(2, SOLID_TILE_OUTLINE, 0.6);
           graphics.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
         }
 
-        if (tile === "tree") {
-          graphics.fillStyle(0x5c3820, 1);
-          graphics.fillRect(x + TILE_SIZE / 2 - 3, y + TILE_SIZE - 10, 6, 10);
+        // Small top-down props so a room reads as "library" or "science room"
+        // without anyone having to stop and read a label.
+        switch (tile) {
+          case "tree":
+            graphics.fillStyle(0x5c3820, 1);
+            graphics.fillRect(x + TILE_SIZE / 2 - 3, y + TILE_SIZE - 10, 6, 10);
+            break;
+          case "shelf":
+            graphics.fillStyle(0xc99457, 1);
+            for (const offset of [6, 14, 22]) {
+              graphics.fillRect(x + 3, y + offset, TILE_SIZE - 6, 3);
+            }
+            break;
+          case "desk":
+            graphics.fillStyle(0x3a2415, 0.5);
+            graphics.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+            break;
+          case "lab_table":
+            graphics.fillStyle(0x6fc3d9, 1);
+            graphics.fillRect(x + 10, y + 10, 12, 12);
+            break;
+          case "piano":
+            graphics.fillStyle(0xfbf3e3, 1);
+            for (let i = 0; i < 4; i++) {
+              graphics.fillRect(x + 2 + i * 7, y + TILE_SIZE - 10, 5, 8);
+            }
+            break;
+          case "goal":
+            graphics.lineStyle(2, 0x2a2015, 1);
+            graphics.strokeRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+            break;
+          case "stage":
+            graphics.fillStyle(0xe8a13a, 1);
+            graphics.fillRect(x + 2, y + 2, TILE_SIZE - 4, 4);
+            break;
+          default:
+            break;
         }
       }
     }
