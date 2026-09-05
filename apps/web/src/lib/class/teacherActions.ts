@@ -49,6 +49,10 @@ export async function createClass(
   });
 
   if (error || !data) {
+    // Never sent to the browser -- the client only ever sees GENERIC_ERROR.
+    // Without this, a misapplied migration or a missing teacher_accounts row
+    // fails completely silently, with no trail to diagnose it from.
+    console.error("create_class failed:", error?.message ?? "no row returned");
     return { success: false, error: GENERIC_ERROR };
   }
 
@@ -68,6 +72,7 @@ export async function regenerateClassCode(
   });
 
   if (error || !data) {
+    console.error("regenerate_class_code failed:", error?.message ?? "no row returned");
     return { success: false, error: GENERIC_ERROR };
   }
 
@@ -89,6 +94,7 @@ export async function archiveClass(
     .eq("id", classId);
 
   if (error) {
+    console.error("archiveClass failed:", error.message);
     return { success: false, error: GENERIC_ERROR };
   }
 
@@ -110,6 +116,7 @@ export async function setClassJoinOpen(
     .eq("id", classId);
 
   if (error) {
+    console.error("setClassJoinOpen failed:", error.message);
     return { success: false, error: GENERIC_ERROR };
   }
 
