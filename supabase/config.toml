@@ -1,0 +1,7 @@
+# Without this file the Supabase CLI walks up past the repo root looking for a
+# config and picks up whatever it finds in the user's home directory, which is
+# how `supabase gen types` ends up reading someone else's project settings.
+project_id = "classtown"
+
+[db]
+major_version = 15

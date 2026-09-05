@@ -15,12 +15,26 @@ export interface TeacherAccount extends BaseAccount {
   updatedAt: string;
 }
 
-export interface StudentAccount extends BaseAccount {
-  role: "student";
+/**
+ * Students do not have accounts. A participant is a character sheet scoped to
+ * one class, addressed by a server-generated code — no email, no password, no
+ * `auth.users` row. See docs/adr/0002-class-and-student-participants.md.
+ */
+export interface StudentParticipant {
+  id: string;
+  classId: string;
+  participantCode: string;
   nickname: string;
-  email: string;
-  emailVerified: boolean;
-  settings: StudentSettings;
+  status: "active" | "removed" | "transferred";
+  lastSeenAt: string | null;
+  createdAt: string;
+}
+
+export interface StudentProgression {
+  participantId: string;
+  xp: number;
+  level: number;
+  playSeconds: number;
 }
 
 export interface StudentSettings {

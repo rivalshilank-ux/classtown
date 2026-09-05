@@ -1,16 +1,29 @@
+/**
+ * What the browser is allowed to hold between the entry form and the game.
+ *
+ * Note what is absent: there is no participant id and no class id. The ticket is
+ * the only thing that confers identity, it is single-use, and it expires in two
+ * minutes — so a copied session object is worth nothing after the first join.
+ */
 export interface StudentSession {
-  classCode: string;
+  ticketId: string;
   nickname: string;
+  participantCode: string;
+  classCode: string;
 }
 
 const STORAGE_KEY = "classtown.student";
 
 function isStudentSession(value: unknown): value is StudentSession {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
   return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as StudentSession).classCode === "string" &&
-    typeof (value as StudentSession).nickname === "string"
+    typeof candidate.ticketId === "string" &&
+    typeof candidate.nickname === "string" &&
+    typeof candidate.participantCode === "string" &&
+    typeof candidate.classCode === "string"
   );
 }
 
@@ -34,6 +47,19 @@ export function getStudentSession(): StudentSession | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A ticket is spent the moment the game server accepts it, so the copy in
+ * storage is dead weight afterwards. Clearing it keeps a refresh from retrying a
+ * ticket that can only fail.
+ */
+export function clearStudentTicket(): void {
+  const session = getStudentSession();
+  if (!session) {
+    return;
+  }
+  saveStudentSession({ ...session, ticketId: "" });
 }
 
 export function clearStudentSession(): void {

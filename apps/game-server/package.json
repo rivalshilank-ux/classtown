@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./fakePersistence": "./src/persistence/fakePersistence.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -19,6 +20,7 @@
     "@colyseus/core": "0.16.24",
     "@colyseus/schema": "3.0.76",
     "@colyseus/ws-transport": "0.16.5",
+    "@supabase/supabase-js": "2.115.0",
     "express": "5.2.1"
   },
   "devDependencies": {

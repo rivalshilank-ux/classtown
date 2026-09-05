@@ -1,6 +1,11 @@
 import { createGameServer } from "./server.js";
+import { createSupabasePersistence } from "./persistence/supabasePersistence.js";
 
-const { gameServer } = createGameServer();
+// Fail fast: a game server that cannot reach Supabase cannot verify a join
+// ticket, and a room that cannot verify tickets must not accept players.
+const persistence = createSupabasePersistence();
+
+const { gameServer } = createGameServer({ persistence });
 
 const port = Number(process.env.PORT) || 2567;
 

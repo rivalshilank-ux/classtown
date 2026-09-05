@@ -1,7 +1,7 @@
 import "server-only";
 import type { TeacherAccount } from "@classtown/shared-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Tables } from "@/lib/supabase/database.types";
+import type { Tables } from "@classtown/shared-types/database";
 
 type TeacherAccountRow = Tables<"teacher_accounts">;
 

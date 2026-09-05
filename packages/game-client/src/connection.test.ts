@@ -1,12 +1,17 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getStateCallbacks } from "colyseus.js";
+import { SPAWN_POINT } from "@classtown/shared-schema";
 import { createGameServer } from "@classtown/game-server/server";
+import {
+  createFakePersistence,
+  type FakePersistence,
+} from "@classtown/game-server/fakePersistence";
 import { connectToTownRoom } from "./connection";
 import { sendMoveIntent } from "./moveSender";
 import type { ConnectionStatus, MoveIntentInput } from "./types";
 
-const JOIN_OPTIONS = { joinCode: "ABCD1234", nickname: "Alex" };
+const CLASS_ID = "11111111-1111-4111-8111-111111111111";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,10 +33,25 @@ async function waitFor(
 
 describe("game-client connection integration", () => {
   let server: ReturnType<typeof createGameServer>;
+  let persistence: FakePersistence;
   let endpoint: string;
+  let seq = 0;
+
+  /** Mints the ticket the web join action would hand the browser. */
+  function ticket() {
+    seq += 1;
+    return {
+      ticket: persistence.issueTicket({
+        participantId: `22222222-2222-4222-8222-${String(seq).padStart(12, "0")}`,
+        classId: CLASS_ID,
+        nickname: "Alex",
+      }),
+    };
+  }
 
   beforeEach(async () => {
-    server = createGameServer();
+    persistence = createFakePersistence();
+    server = createGameServer({ persistence });
     await server.gameServer.listen(0);
     const { port } = server.httpServer.address() as AddressInfo;
     endpoint = `ws://localhost:${port}`;
@@ -43,7 +63,7 @@ describe("game-client connection integration", () => {
 
   it("connects, joins town, sends a move intent, and receives the server-computed position", async () => {
     const statuses: ConnectionStatus[] = [];
-    const room = await connectToTownRoom(endpoint, JOIN_OPTIONS, (status) => {
+    const room = await connectToTownRoom(endpoint, ticket(), (status) => {
       statuses.push(status);
     });
 
@@ -61,8 +81,8 @@ describe("game-client connection integration", () => {
 
     sendMoveIntent(room, { dx: 1, dy: 0 });
 
-    await waitFor(() => observedX !== undefined && observedX > 0);
-    expect(observedX).toBeGreaterThan(0);
+    await waitFor(() => observedX !== undefined && observedX > SPAWN_POINT.x);
+    expect(observedX).toBeGreaterThan(SPAWN_POINT.x);
 
     await room.leave();
     await waitFor(() => statuses.includes("disconnected"));
@@ -70,7 +90,7 @@ describe("game-client connection integration", () => {
   });
 
   it("refuses to send a malformed payload (e.g. an absolute position) to the server", async () => {
-    const room = await connectToTownRoom(endpoint, JOIN_OPTIONS);
+    const room = await connectToTownRoom(endpoint, ticket());
 
     expect(() =>
       sendMoveIntent(room, { x: 999, y: 999 } as unknown as MoveIntentInput),

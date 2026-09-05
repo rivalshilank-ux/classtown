@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Card, Header, TextField } from "@classtown/ui";
-import { joinRoomOptionsSchema } from "@classtown/shared-schema";
+import { Alert, Button, Card, Header, TextField } from "@classtown/ui";
+import { classCodeSchema, nicknameSchema } from "@classtown/shared-schema";
+import { joinClass } from "@/lib/class/studentActions";
 import { saveStudentSession } from "@/lib/student/session";
-import { toFieldErrors } from "@/lib/auth/formErrors";
 import { PixelTownScene } from "../_components/PixelTownScene";
 
 function generateGuestNickname() {
@@ -15,31 +15,56 @@ function generateGuestNickname() {
 
 export function StudentEntryForm() {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [nickname, setNickname] = useState(() => generateGuestNickname());
   const [classCode, setClassCode] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isPending) {
+      return;
+    }
+    setFormError(null);
+    setFieldErrors({});
 
-    const input = { classCode: classCode.trim(), nickname: nickname.trim() };
-    const parsed = joinRoomOptionsSchema.safeParse({
-      joinCode: input.classCode,
-      nickname: input.nickname,
-    });
+    // Shape is checked here so an obvious typo doesn't cost a round trip; the
+    // code itself is only ever validated against the database, server-side.
+    const codeCheck = classCodeSchema.safeParse(classCode);
+    const nameCheck = nicknameSchema.safeParse(nickname);
 
-    if (!parsed.success) {
-      const errors = toFieldErrors(parsed.error);
+    if (!codeCheck.success || !nameCheck.success) {
       setFieldErrors({
-        classCode: errors.joinCode ?? "",
-        nickname: errors.nickname ?? "",
+        classCode: codeCheck.success ? "" : (codeCheck.error.issues[0]?.message ?? ""),
+        nickname: nameCheck.success ? "" : (nameCheck.error.issues[0]?.message ?? ""),
       });
       return;
     }
 
-    setFieldErrors({});
-    saveStudentSession(input);
-    router.push("/student/home");
+    startTransition(async () => {
+      try {
+        const result = await joinClass({
+          classCode: codeCheck.data,
+          nickname: nameCheck.data,
+        });
+
+        if (!result.success) {
+          setFormError(result.error);
+          return;
+        }
+
+        saveStudentSession({
+          ticketId: result.ticketId,
+          nickname: result.nickname,
+          participantCode: result.participantCode,
+          classCode: result.classCode,
+        });
+        router.push("/student/home");
+      } catch {
+        setFormError("지금은 입장할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    });
   }
 
   return (
@@ -60,14 +85,18 @@ export function StudentEntryForm() {
 
         <Card className="max-w-sm">
           <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+            {formError && <Alert variant="error">{formError}</Alert>}
+
             <TextField
               label="참가 코드"
               name="classCode"
               value={classCode}
               onChange={(event) => setClassCode(event.target.value)}
-              placeholder="예: DEVROOM1"
-              maxLength={12}
+              placeholder="예: ABC-123"
+              maxLength={8}
               autoComplete="off"
+              autoCapitalize="characters"
+              disabled={isPending}
               required
               error={fieldErrors.classCode || undefined}
             />
@@ -78,11 +107,12 @@ export function StudentEntryForm() {
               onChange={(event) => setNickname(event.target.value)}
               maxLength={20}
               autoComplete="off"
+              disabled={isPending}
               required
               error={fieldErrors.nickname || undefined}
             />
-            <Button type="submit" className="w-full">
-              다음
+            <Button type="submit" isLoading={isPending} className="w-full">
+              {isPending ? "입장하는 중..." : "입장하기"}
             </Button>
           </form>
         </Card>

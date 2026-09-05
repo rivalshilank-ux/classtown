@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createGameClient, type ConnectionStatus } from "@classtown/game-client";
-import {
-  joinRoomOptionsSchema,
-  type JoinRoomOptionsInput,
-} from "@classtown/shared-schema";
-import { Button, Card, Header, Logo, TextField } from "@classtown/ui";
-import { getStudentSession } from "@/lib/student/session";
+import { Logo } from "@classtown/ui";
+import { clearStudentTicket, getStudentSession } from "@/lib/student/session";
 
 const GAME_SERVER_URL =
   process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? "ws://localhost:2567";
-const JOIN_CODE = "DEVROOM1";
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   connecting: "서버에 연결하는 중...",
@@ -22,88 +18,39 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
   disconnected: "연결이 끊어졌습니다.",
 };
 
-function generateGuestNickname() {
-  return `Guest-${Math.floor(Math.random() * 10000)}`;
-}
-
-function EntryScreen({
-  onEnter,
-}: {
-  onEnter: (nickname: string) => void;
-}) {
-  const [nickname, setNickname] = useState(() => generateGuestNickname());
-  const [error, setError] = useState<string | null>(null);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const parsed = joinRoomOptionsSchema.shape.nickname.safeParse(nickname.trim());
-    if (!parsed.success) {
-      setError("닉네임은 1~20자로 입력해 주세요.");
-      return;
-    }
-
-    setError(null);
-    onEnter(parsed.data);
-  }
-
-  return (
-    <div className="flex min-h-screen flex-col bg-sky-light">
-      <Header />
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 p-4">
-        <div className="flex w-full max-w-sm flex-col items-center gap-1 text-center">
-          <h1 className="font-[family-name:var(--font-display)] text-2xl text-ink-900 sm:text-3xl">
-            닉네임을 입력하고 입장하세요
-          </h1>
-          <p className="text-sm text-ink-600">
-            계정 없이 바로 게스트로 플레이할 수 있어요.
-          </p>
-        </div>
-
-        <Card className="max-w-sm">
-          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-            <TextField
-              label="닉네임"
-              name="nickname"
-              value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
-              maxLength={20}
-              autoComplete="off"
-              required
-              error={error ?? undefined}
-            />
-            <Button type="submit" className="w-full">
-              입장하기
-            </Button>
-          </form>
-        </Card>
-      </main>
-    </div>
-  );
-}
-
 export function GameCanvas() {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
-  const [joinOptions, setJoinOptions] = useState<JoinRoomOptionsInput | null>(
-    () => {
-      const session = getStudentSession();
-      return session
-        ? { joinCode: session.classCode, nickname: session.nickname }
-        : null;
-    },
-  );
+
+  // Read once, on mount. There is no nickname-only fallback any more: without a
+  // ticket there is no way to prove which class this player belongs to, so the
+  // only correct move is to send them back to the entry form.
+  const [ticketId] = useState<string | null>(() => {
+    const session = getStudentSession();
+    return session?.ticketId ? session.ticketId : null;
+  });
+
+  useEffect(() => {
+    if (ticketId === null) {
+      router.replace("/student");
+    }
+  }, [ticketId, router]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || joinOptions === null) {
+    if (!container || ticketId === null) {
       return;
     }
 
+    // A ticket is single-use, so it is spent as soon as we hand it over. Keeping
+    // it around would only let a refresh retry a join that can no longer succeed.
+    clearStudentTicket();
+
     const handle = createGameClient(container, {
       endpoint: GAME_SERVER_URL,
-      joinOptions,
+      joinOptions: { ticket: ticketId },
       onStatusChange: setStatus,
       onError: setError,
     });
@@ -111,17 +58,14 @@ export function GameCanvas() {
     return () => {
       handle.destroy();
     };
-  }, [joinOptions]);
+  }, [ticketId]);
 
-  if (joinOptions === null) {
-    return (
-      <EntryScreen
-        onEnter={(nickname) => setJoinOptions({ joinCode: JOIN_CODE, nickname })}
-      />
-    );
+  if (ticketId === null) {
+    return <div className="min-h-screen bg-sky-light" />;
   }
 
   const showOverlay = status !== "joined";
+  const isRecoverable = status === "error" || status === "disconnected";
 
   return (
     <div className="relative h-screen w-screen bg-ink-900">
@@ -130,11 +74,20 @@ export function GameCanvas() {
         <Logo size="sm" />
       </div>
       {showOverlay && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-900/70">
-          <div className="pixel-corners border-4 border-wood-900 bg-cream-500 px-6 py-4 text-center shadow-[0_5px_0_0_#3a2415]">
+        <div className="absolute inset-0 flex items-center justify-center bg-ink-900/70">
+          <div className="pixel-corners flex flex-col items-center gap-3 border-4 border-wood-900 bg-cream-500 px-6 py-4 text-center shadow-[0_5px_0_0_#3a2415]">
             <p className="font-[family-name:var(--font-display)] text-base text-ink-900">
               {error ?? STATUS_LABEL[status]}
             </p>
+            {isRecoverable && (
+              <button
+                type="button"
+                onClick={() => router.replace("/student")}
+                className="pixel-corners border-2 border-ink-900 bg-accent-500 px-4 py-2 font-[family-name:var(--font-display)] text-sm text-ink-900 shadow-[0_3px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-accent-600 active:translate-y-[2px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
+              >
+                다시 입장하기
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -4,7 +4,6 @@ import { createBaseConfig } from "@classtown/config/eslint/base";
 const config = [
   ...createBaseConfig(import.meta.dirname),
   ...nextCoreWebVitals,
-  { ignores: ["src/lib/supabase/database.types.ts"] },
 ];
 
 export default config;

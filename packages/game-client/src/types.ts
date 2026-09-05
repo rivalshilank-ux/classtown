@@ -1,6 +1,6 @@
-import type { JoinRoomOptionsInput } from "@classtown/shared-schema";
+import type { JoinTicketOptionsInput } from "@classtown/shared-schema";
 
-export type { JoinRoomOptionsInput, MoveIntentInput } from "@classtown/shared-schema";
+export type { JoinTicketOptionsInput, MoveIntentInput } from "@classtown/shared-schema";
 
 export type ConnectionStatus =
   | "connecting"
@@ -12,7 +12,7 @@ export type ConnectionStatus =
 
 export interface GameClientOptions {
   endpoint: string;
-  joinOptions: JoinRoomOptionsInput;
+  joinOptions: JoinTicketOptionsInput;
   onStatusChange?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
 }

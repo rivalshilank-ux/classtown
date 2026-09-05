@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/**
+ * @deprecated The Colyseus join contract is now `joinTicketOptionsSchema` in
+ * ./class/entry.ts — a room must not accept a class code or nickname from the
+ * client, because that is the client asserting its own identity. Kept while the
+ * remaining call sites migrate; do not use it for new code.
+ */
 export const joinRoomOptionsSchema = z.object({
   joinCode: z
     .string()
