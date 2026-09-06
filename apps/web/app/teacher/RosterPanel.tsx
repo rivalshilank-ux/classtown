@@ -2,6 +2,7 @@ import { Badge, Panel, StatusDot } from "@classtown/ui";
 import { formatEntryCode } from "@classtown/shared-schema";
 import type { RosterEntry } from "@classtown/shared-types";
 import { ONLINE_WINDOW_MS } from "@/lib/class/queries";
+import { RemoveStudentButton } from "./RemoveStudentButton";
 
 interface RosterPanelProps {
   roster: RosterEntry[];
@@ -42,6 +43,7 @@ export function RosterPanel({ roster }: RosterPanelProps) {
                 <Badge tone="wood" className="whitespace-nowrap">
                   Lv.{entry.level}
                 </Badge>
+                <RemoveStudentButton participantId={entry.id} nickname={entry.nickname} />
               </span>
             </li>
           ))}

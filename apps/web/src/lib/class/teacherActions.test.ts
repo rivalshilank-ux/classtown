@@ -6,13 +6,52 @@ import {
   archiveClass,
   createClass,
   regenerateClassCode,
+  removeParticipant,
+  renameClass,
   setClassJoinOpen,
 } from "./teacherActions";
 
-const mockRpc = vi.fn();
-const mockEq = vi.fn();
-const mockUpdate = vi.fn((_payload: Record<string, unknown>) => ({ eq: mockEq }));
-const mockFrom = vi.fn(() => ({ update: mockUpdate }));
+// vi.mock calls are hoisted above every other top-level statement -- with
+// more than one in a file, the mocked variables need vi.hoisted() or the
+// factory below runs before its `const` initializer does (a TDZ error).
+const {
+  mockRpc,
+  mockEq,
+  mockUpdate,
+  mockParticipantsEq,
+  mockParticipantsUpdate,
+  mockParticipantsMaybeSingle,
+  mockFrom,
+  mockGetActiveMaintenanceNotice,
+} = vi.hoisted(() => {
+  const mockEq = vi.fn();
+  const mockUpdate = vi.fn((_payload: Record<string, unknown>) => ({ eq: mockEq }));
+
+  const mockParticipantsMaybeSingle = vi.fn();
+  const mockParticipantsSelect = vi.fn(() => ({ maybeSingle: mockParticipantsMaybeSingle }));
+  const mockParticipantsEq = vi.fn(() => ({ select: mockParticipantsSelect }));
+  const mockParticipantsUpdate = vi.fn((_payload: Record<string, unknown>) => ({
+    eq: mockParticipantsEq,
+  }));
+
+  return {
+    mockRpc: vi.fn(),
+    mockEq,
+    mockUpdate,
+    mockParticipantsEq,
+    mockParticipantsUpdate,
+    mockParticipantsMaybeSingle,
+    // "classes" keeps the original update->eq shape every existing test
+    // relies on; "student_participants" (removeParticipant) is the only
+    // caller that also chains select().maybeSingle() after eq().
+    mockFrom: vi.fn((table: string) =>
+      table === "student_participants"
+        ? { update: mockParticipantsUpdate }
+        : { update: mockUpdate },
+    ),
+    mockGetActiveMaintenanceNotice: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(() =>
@@ -20,8 +59,17 @@ vi.mock("@/lib/supabase/server", () => ({
   ),
 }));
 
+vi.mock("@/lib/site/maintenance", () => ({
+  getActiveMaintenanceNotice: mockGetActiveMaintenanceNotice,
+}));
+
+beforeEach(() => {
+  mockGetActiveMaintenanceNotice.mockResolvedValue(null);
+});
+
 const GENERIC = "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const NAME_ERROR = "학급 이름을 확인해 주세요.";
+const MAINTENANCE_ACTIVE = { message: "점검 중", startsAt: "2026-01-01T00:00:00Z" };
 
 const CLASS_ROW = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -111,6 +159,18 @@ describe("createClass", () => {
     expect(result).toEqual({ success: false, error: GENERIC });
     consoleSpy.mockRestore();
   });
+
+  it("blocks class creation with a server-authoritative check when maintenance is active", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+
+    const result = await createClass("5-A");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.code).toBe("MAINTENANCE_MODE");
+    }
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
 });
 
 describe("regenerateClassCode", () => {
@@ -147,6 +207,13 @@ describe("regenerateClassCode", () => {
 
     expect(result).toEqual({ success: false, error: GENERIC });
     consoleSpy.mockRestore();
+  });
+
+  it("blocks regenerating a code during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await regenerateClassCode(CLASS_ROW.id);
+    expect(result.success).toBe(false);
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });
 
@@ -187,6 +254,13 @@ describe("archiveClass", () => {
     expect(result).toEqual({ success: false, error: GENERIC });
     consoleSpy.mockRestore();
   });
+
+  it("blocks archiving a class during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await archiveClass(CLASS_ROW.id);
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 });
 
 describe("setClassJoinOpen", () => {
@@ -208,5 +282,114 @@ describe("setClassJoinOpen", () => {
 
     expect(result).toEqual({ success: true, data: null });
     expect(mockUpdate).toHaveBeenCalledWith({ join_open: false });
+  });
+
+  it("blocks toggling join_open during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await setClassJoinOpen(CLASS_ROW.id, false);
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("renameClass", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a non-string class id without calling supabase", async () => {
+    const result = await renameClass(123, "5-B");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid name without calling supabase", async () => {
+    const result = await renameClass(CLASS_ROW.id, "");
+
+    expect(result).toEqual({ success: false, error: NAME_ERROR });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("renames on success, relying on RLS (not a client teacher id) for ownership", async () => {
+    mockEq.mockResolvedValue({ error: null });
+
+    const result = await renameClass(CLASS_ROW.id, "5-B");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockFrom).toHaveBeenCalledWith("classes");
+    expect(mockUpdate).toHaveBeenCalledWith({ name: "5-B" });
+    expect(mockEq).toHaveBeenCalledWith("id", CLASS_ROW.id);
+  });
+
+  it("does not leak a database error (e.g. a class owned by another teacher)", async () => {
+    mockEq.mockResolvedValue({ error: { message: "permission denied" } });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await renameClass(CLASS_ROW.id, "5-B");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    consoleSpy.mockRestore();
+  });
+
+  it("blocks renaming during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await renameClass(CLASS_ROW.id, "5-B");
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("removeParticipant", () => {
+  const PARTICIPANT_ID = "33333333-3333-4333-8333-333333333333";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a non-string participant id without calling supabase", async () => {
+    const result = await removeParticipant(null);
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("sets status to removed on success", async () => {
+    mockParticipantsMaybeSingle.mockResolvedValue({ data: { id: PARTICIPANT_ID }, error: null });
+
+    const result = await removeParticipant(PARTICIPANT_ID);
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockFrom).toHaveBeenCalledWith("student_participants");
+    expect(mockParticipantsUpdate).toHaveBeenCalledWith({ status: "removed" });
+    expect(mockParticipantsEq).toHaveBeenCalledWith("id", PARTICIPANT_ID);
+  });
+
+  it("fails without leaking a database error", async () => {
+    mockParticipantsMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { message: "permission denied" },
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await removeParticipant(PARTICIPANT_ID);
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    consoleSpy.mockRestore();
+  });
+
+  it("reports failure when RLS matches no row (a participant from another teacher's class, IDOR)", async () => {
+    mockParticipantsMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    const result = await removeParticipant(PARTICIPANT_ID);
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+  });
+
+  it("blocks removal during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await removeParticipant(PARTICIPANT_ID);
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });

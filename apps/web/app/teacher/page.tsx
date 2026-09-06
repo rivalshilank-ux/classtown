@@ -12,9 +12,11 @@ import {
 } from "@/lib/class/queries";
 import { LogoutButton } from "./LogoutButton";
 import { ClassOverview } from "./ClassOverview";
+import { ClassManagement } from "./ClassManagement";
 import { RosterPanel } from "./RosterPanel";
 import { RecentActivity } from "./RecentActivity";
 import { CreateClassForm } from "./CreateClassForm";
+import { SiteStatusBanner } from "../_components/SiteStatusBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
       <Header>
         <LogoutButton />
       </Header>
+      <SiteStatusBanner />
 
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-4 py-8">
         <div className="flex flex-col gap-1">
@@ -82,6 +85,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
         {activeClass && summary ? (
           <>
             <ClassOverview classRecord={activeClass} summary={summary} />
+            <ClassManagement classRecord={activeClass} />
             <RosterPanel roster={roster} />
             <RecentActivity activity={activity} />
           </>
@@ -143,7 +147,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
             준비 중인 기능
           </span>
           <br />
-          레벨·경험치, 구역별 접속 현황, 퀘스트 기록은 순차적으로 추가됩니다.
+          구역별 접속 현황, 퀘스트 기록은 순차적으로 추가됩니다.
         </Alert>
       </main>
     </div>

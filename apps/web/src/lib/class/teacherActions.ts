@@ -2,14 +2,30 @@
 
 import { classNameSchema } from "@classtown/shared-schema";
 import type { ClassRecord } from "@classtown/shared-types";
+import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveMaintenanceNotice } from "@/lib/site/maintenance";
 
 export type ClassActionResult<T> =
   | { success: true; data: T }
-  | { success: false; error: string };
+  | { success: false; error: string; code?: typeof MAINTENANCE_MODE_ERROR_CODE };
 
 const GENERIC_ERROR = "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const NAME_ERROR = "학급 이름을 확인해 주세요.";
+const MAINTENANCE_ERROR = "현재 ClassTown은 점검 중입니다. 잠시 후 다시 이용해 주세요.";
+
+/**
+ * Server-authoritative maintenance gate for teacher mutations. Reads (in
+ * class/queries.ts) are deliberately not gated -- Maintenance Mode blocks
+ * writes, not dashboard visibility, per docs/admin/admin.md.
+ */
+async function checkMaintenanceGate(): Promise<{ error: string; code: typeof MAINTENANCE_MODE_ERROR_CODE } | null> {
+  const notice = await getActiveMaintenanceNotice();
+  if (!notice) {
+    return null;
+  }
+  return { error: MAINTENANCE_ERROR, code: MAINTENANCE_MODE_ERROR_CODE };
+}
 
 function toClassRecord(row: {
   id: string;
@@ -43,6 +59,11 @@ export async function createClass(
     return { success: false, error: NAME_ERROR };
   }
 
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("create_class", {
     p_name: parsed.data,
@@ -59,11 +80,52 @@ export async function createClass(
   return { success: true, data: toClassRecord(data) };
 }
 
+export async function renameClass(
+  classId: unknown,
+  name: unknown,
+): Promise<ClassActionResult<null>> {
+  if (typeof classId !== "string") {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const parsed = classNameSchema.safeParse(name);
+  if (!parsed.success) {
+    return { success: false, error: NAME_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // .eq("id", classId) alone is not the ownership check -- RLS's own
+  // `using (is_class_teacher(id))` on this UPDATE policy is. A foreign
+  // class id simply matches no row here, exactly like every other
+  // teacher-scoped mutation in this file.
+  const { error } = await supabase
+    .from("classes")
+    .update({ name: parsed.data })
+    .eq("id", classId);
+
+  if (error) {
+    console.error("renameClass failed:", error.message);
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  return { success: true, data: null };
+}
+
 export async function regenerateClassCode(
   classId: unknown,
 ): Promise<ClassActionResult<string>> {
   if (typeof classId !== "string") {
     return { success: false, error: GENERIC_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -85,6 +147,11 @@ export async function archiveClass(
 ): Promise<ClassActionResult<null>> {
   if (typeof classId !== "string") {
     return { success: false, error: GENERIC_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -109,6 +176,11 @@ export async function setClassJoinOpen(
     return { success: false, error: GENERIC_ERROR };
   }
 
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from("classes")
@@ -117,6 +189,47 @@ export async function setClassJoinOpen(
 
   if (error) {
     console.error("setClassJoinOpen failed:", error.message);
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  return { success: true, data: null };
+}
+
+/**
+ * Removal is `status = 'removed'`, never a row delete -- progression and
+ * activity history stay in place. The same column-level grant this reuses
+ * (`update (nickname, status)`, 20260905030000) also permits setting status
+ * back to 'active', so restoring a removed student needs no new grant or
+ * migration if a future UI ever surfaces one; this phase only exposes remove.
+ */
+export async function removeParticipant(
+  participantId: unknown,
+): Promise<ClassActionResult<null>> {
+  if (typeof participantId !== "string") {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // Ownership is RLS's `using (is_class_teacher(class_id))` on this table's
+  // update policy -- a participant id from another teacher's class matches
+  // no row, the same IDOR shape as every other mutation in this file.
+  const { data, error } = await supabase
+    .from("student_participants")
+    .update({ status: "removed" })
+    .eq("id", participantId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("removeParticipant failed:", error.message);
+    return { success: false, error: GENERIC_ERROR };
+  }
+  if (!data) {
     return { success: false, error: GENERIC_ERROR };
   }
 
