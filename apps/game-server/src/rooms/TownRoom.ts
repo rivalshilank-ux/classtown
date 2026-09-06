@@ -9,6 +9,7 @@ import {
   TownRoomState,
   type MoveIntentInput,
 } from "@classtown/shared-schema";
+import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import type { ClassPersistence, JoinIdentity } from "../persistence/types.js";
 
 const MOVE_SPEED = 160;
@@ -88,6 +89,14 @@ export class TownRoom extends Room<TownRoomState> {
     const parsed = joinTicketOptionsSchema.safeParse(options);
     if (!parsed.success) {
       throw new ServerError(400, "Invalid join options");
+    }
+
+    // Rejects a *new* join only. A player already in the room during this
+    // check is untouched -- onAuth runs once, at join time, never again for
+    // an existing session, so there is nothing here that could disconnect
+    // one mid-game.
+    if (await this.persistence.isMaintenanceActive()) {
+      throw new ServerError(503, MAINTENANCE_MODE_ERROR_CODE);
     }
 
     const identity = await this.persistence.consumeJoinTicket(parsed.data.ticket);

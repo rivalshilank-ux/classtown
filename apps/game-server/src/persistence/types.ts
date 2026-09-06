@@ -28,4 +28,12 @@ export interface ClassPersistence {
   ): Promise<void>;
 
   addPlaySeconds(participantId: string, seconds: number): Promise<void>;
+
+  /**
+   * Whether an admin-started maintenance window is currently active. Checked
+   * in onAuth to reject a *new* join -- never used to disconnect a player
+   * already in the room, since a maintenance window starting mid-session
+   * should not destroy anyone's in-progress game state.
+   */
+  isMaintenanceActive(): Promise<boolean>;
 }

@@ -73,6 +73,26 @@ export function createSupabasePersistence(): ClassPersistence {
       }
     },
 
+    async isMaintenanceActive(): Promise<boolean> {
+      // get_active_maintenance_notice() is a security definer function
+      // granted to anon/authenticated/service_role alike (see
+      // 20260906060000_public_read_hardening.sql) -- checking "is
+      // maintenance on" needs no special privilege, so this reuses the same
+      // public RPC apps/web's SiteStatusBanner calls rather than reading
+      // maintenance_windows directly.
+      const { data, error } = await client.rpc("get_active_maintenance_notice");
+
+      if (error) {
+        // Fails open: a transient error here shouldn't block every join by
+        // itself. A genuinely unreachable database also fails
+        // consumeJoinTicket right after this, which rejects the join anyway.
+        console.error("get_active_maintenance_notice failed:", error.message);
+        return false;
+      }
+
+      return (data?.length ?? 0) > 0;
+    },
+
     async addPlaySeconds(participantId: string, seconds: number): Promise<void> {
       if (seconds <= 0) {
         return;

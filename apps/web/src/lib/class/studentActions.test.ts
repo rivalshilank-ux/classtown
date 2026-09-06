@@ -4,7 +4,13 @@ vi.mock("server-only", () => ({}));
 import { joinClass } from "./studentActions";
 import { resetRateLimits } from "./rateLimit";
 
-const mockRpc = vi.fn();
+// vi.mock calls are hoisted above every other top-level statement -- with
+// more than one in a file, the mocked variables need vi.hoisted() or the
+// factory below runs before its `const` initializer does (a TDZ error).
+const { mockRpc, mockGetActiveMaintenanceNotice } = vi.hoisted(() => ({
+  mockRpc: vi.fn(),
+  mockGetActiveMaintenanceNotice: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/service", () => ({
   createSupabaseServiceClient: vi.fn(() => ({ rpc: mockRpc })),
@@ -14,6 +20,10 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(() =>
     Promise.resolve({ get: (_name: string) => "203.0.113.5" }),
   ),
+}));
+
+vi.mock("@/lib/site/maintenance", () => ({
+  getActiveMaintenanceNotice: mockGetActiveMaintenanceNotice,
 }));
 
 const SUCCESS_ROW = {
@@ -31,6 +41,22 @@ describe("joinClass", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRateLimits();
+    mockGetActiveMaintenanceNotice.mockResolvedValue(null);
+  });
+
+  it("blocks a join with a server-authoritative check when maintenance is active, without calling the database", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue({
+      message: "점검 중",
+      startsAt: "2026-01-01T00:00:00Z",
+    });
+
+    const result = await joinClass({ classCode: "ABC234", nickname: "민지" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.code).toBe("MAINTENANCE_MODE");
+    }
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("normalizes a dashed, lowercase class code before sending it", async () => {

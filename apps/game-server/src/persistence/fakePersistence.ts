@@ -12,6 +12,8 @@ export interface FakePersistence extends ClassPersistence {
   readonly events: RecordedEvent[];
   readonly seen: string[][];
   readonly playSeconds: Map<string, number>;
+  /** Test hook: flips what isMaintenanceActive() returns. Defaults to false. */
+  setMaintenanceActive(active: boolean): void;
 }
 
 /**
@@ -25,11 +27,20 @@ export function createFakePersistence(): FakePersistence {
   const seen: string[][] = [];
   const playSeconds = new Map<string, number>();
   let counter = 0;
+  let maintenanceActive = false;
 
   return {
     events,
     seen,
     playSeconds,
+
+    setMaintenanceActive(active) {
+      maintenanceActive = active;
+    },
+
+    isMaintenanceActive() {
+      return Promise.resolve(maintenanceActive);
+    },
 
     issueTicket(identity) {
       counter += 1;

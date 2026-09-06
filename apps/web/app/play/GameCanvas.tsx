@@ -4,7 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createGameClient, type ConnectionStatus } from "@classtown/game-client";
 import { Logo, PixelIcon } from "@classtown/ui";
+import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { clearStudentSession, clearStudentTicket, getStudentSession } from "@/lib/student/session";
+
+const MAINTENANCE_MESSAGE = "현재 ClassTown은 점검 중입니다. 잠시 후 다시 이용해 주세요.";
+
+/**
+ * TownRoom.onAuth() throws a ServerError whose message is the bare
+ * MAINTENANCE_MODE_ERROR_CODE (a machine-readable constant shared with
+ * apps/game-server, not a display string) -- this is the one place that
+ * maps it to something a student should actually read.
+ */
+function displayErrorMessage(rawMessage: string): string {
+  return rawMessage === MAINTENANCE_MODE_ERROR_CODE ? MAINTENANCE_MESSAGE : rawMessage;
+}
 
 const GAME_SERVER_URL =
   process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? "ws://localhost:2567";
@@ -50,7 +63,7 @@ export function GameCanvas() {
       endpoint: GAME_SERVER_URL,
       joinOptions: { ticket: ticketId },
       onStatusChange: setStatus,
-      onError: setError,
+      onError: (message) => setError(displayErrorMessage(message)),
     });
 
     return () => {
