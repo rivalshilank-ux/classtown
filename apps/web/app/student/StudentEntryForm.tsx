@@ -99,6 +99,7 @@ export function StudentEntryForm() {
               disabled={isPending}
               required
               error={fieldErrors.classCode || undefined}
+              className="font-[family-name:var(--font-display)] uppercase tracking-[0.2em]"
             />
             <TextField
               label="닉네임"

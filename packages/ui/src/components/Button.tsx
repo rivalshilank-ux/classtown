@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost";
+  size?: "md" | "lg";
   isLoading?: boolean;
   children: ReactNode;
 }
@@ -13,6 +14,11 @@ const VARIANT_CLASSES: Record<NonNullable<ButtonProps["variant"]>, string> = {
     "border-wood-900 bg-wood-600 text-cream-400 shadow-[0_4px_0_0_#3a2415] hover:bg-wood-700 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415]",
   ghost:
     "border-transparent bg-transparent text-ink-900 hover:border-wood-400 hover:bg-cream-500",
+};
+
+const SIZE_CLASSES: Record<NonNullable<ButtonProps["size"]>, string> = {
+  md: "gap-2 px-5 py-2.5 text-sm",
+  lg: "flex-col gap-1 px-6 py-6 text-2xl",
 };
 
 const FOCUS_RING =
@@ -45,6 +51,7 @@ function Spinner() {
 
 export function Button({
   variant = "primary",
+  size = "md",
   isLoading = false,
   className,
   children,
@@ -52,10 +59,11 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const classes = [
-    "pixel-corners inline-flex items-center justify-center gap-2 border-2 px-5 py-2.5",
-    "font-[family-name:var(--font-display)] text-sm tracking-wide transition-[transform,box-shadow,background-color]",
+    "pixel-corners inline-flex items-center justify-center border-2",
+    "font-[family-name:var(--font-display)] tracking-wide transition-[transform,box-shadow,background-color]",
     "disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none disabled:translate-y-0",
     FOCUS_RING,
+    SIZE_CLASSES[size],
     VARIANT_CLASSES[variant],
     className,
   ]

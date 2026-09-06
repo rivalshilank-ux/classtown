@@ -7,4 +7,6 @@ export * from "./components/Card";
 export * from "./components/Panel";
 export * from "./components/Badge";
 export * from "./components/PixelIcon";
+export * from "./components/StatusDot";
+export * from "./components/StatTile";
 export * from "./tokens/colors";

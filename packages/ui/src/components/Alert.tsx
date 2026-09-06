@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export interface AlertProps {
   variant: "info" | "success" | "warning" | "error";
   children: ReactNode;
+  className?: string;
 }
 
 function InfoIcon() {
@@ -83,13 +84,19 @@ const VARIANT_CONFIG: Record<
   },
 };
 
-export function Alert({ variant, children }: AlertProps) {
+export function Alert({ variant, children, className }: AlertProps) {
   const { border, icon, role, iconEl } = VARIANT_CONFIG[variant];
 
   return (
     <div
       role={role}
-      className={`flex items-start gap-2 border-2 border-l-8 border-wood-600 bg-cream-400 px-4 py-3 text-sm text-ink-900 ${border}`}
+      className={[
+        "pixel-corners flex items-start gap-2 border-4 border-l-[10px] border-wood-600 bg-cream-400 px-4 py-3 text-sm text-ink-900 shadow-[0_3px_0_0_#e8d6ab]",
+        border,
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <span className={icon}>{iconEl}</span>
       <span>{children}</span>

@@ -25,13 +25,13 @@ export function LandingHero() {
           <div className="flex flex-col items-center gap-3 pt-2 sm:flex-row">
             <Link
               href="/signup"
-              className="pixel-corners inline-flex items-center justify-center border-2 border-ink-900 bg-accent-500 px-6 py-3 font-[family-name:var(--font-display)] text-base text-ink-900 shadow-[0_4px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-accent-600 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-light"
+              className="pixel-corners inline-flex items-center justify-center border-2 border-ink-900 bg-accent-500 px-7 py-3.5 font-[family-name:var(--font-display)] text-lg text-ink-900 shadow-[0_4px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-accent-600 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-light"
             >
               교사로 시작하기
             </Link>
             <Link
               href="/student"
-              className="pixel-corners inline-flex items-center justify-center border-2 border-wood-900 bg-wood-600 px-6 py-3 font-[family-name:var(--font-display)] text-base text-cream-400 shadow-[0_4px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-wood-700 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-light"
+              className="pixel-corners inline-flex items-center justify-center border-2 border-wood-900 bg-wood-600 px-7 py-3.5 font-[family-name:var(--font-display)] text-lg text-cream-400 shadow-[0_4px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-wood-700 active:translate-y-[3px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-light"
             >
               🎒 학생으로 시작하기
             </Link>

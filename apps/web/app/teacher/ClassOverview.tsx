@@ -1,4 +1,4 @@
-import { Badge, Panel } from "@classtown/ui";
+import { Badge, Panel, StatTile, StatusDot } from "@classtown/ui";
 import { formatEntryCode } from "@classtown/shared-schema";
 import type { ClassRecord, ClassSummary } from "@classtown/shared-types";
 
@@ -8,11 +8,6 @@ interface ClassOverviewProps {
 }
 
 export function ClassOverview({ classRecord, summary }: ClassOverviewProps) {
-  const stats = [
-    { icon: "👥", label: "학생", value: summary.studentCount },
-    { icon: "🟢", label: "접속 중", value: summary.onlineCount },
-  ];
-
   return (
     <Panel variant="wood" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -34,18 +29,12 @@ export function ClassOverview({ classRecord, summary }: ClassOverviewProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="flex flex-col items-center gap-1 border-2 border-wood-600/40 bg-cream-400 py-3"
-          >
-            <span className="text-lg">{stat.icon}</span>
-            <span className="font-[family-name:var(--font-display)] text-lg text-ink-900">
-              {stat.value}
-            </span>
-            <span className="text-xs text-ink-600">{stat.label}</span>
-          </div>
-        ))}
+        <StatTile icon="friend" value={summary.studentCount} label="학생" />
+        <StatTile
+          indicator={<StatusDot tone={summary.onlineCount > 0 ? "good" : "stone"} />}
+          value={summary.onlineCount}
+          label="접속 중"
+        />
       </div>
     </Panel>
   );

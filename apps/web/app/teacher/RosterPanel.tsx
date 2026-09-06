@@ -1,4 +1,4 @@
-import { Badge, Panel } from "@classtown/ui";
+import { Badge, Panel, StatusDot } from "@classtown/ui";
 import { formatEntryCode } from "@classtown/shared-schema";
 import type { RosterEntry } from "@classtown/shared-types";
 import { ONLINE_WINDOW_MS } from "@/lib/class/queries";
@@ -30,12 +30,7 @@ export function RosterPanel({ roster }: RosterPanelProps) {
               className="flex items-center justify-between gap-3 border-b border-wood-600/25 pb-2 last:border-0 last:pb-0"
             >
               <span className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`h-2 w-2 rounded-full ${
-                    isOnline(entry.lastSeenAt) ? "bg-good" : "bg-stone"
-                  }`}
-                />
+                <StatusDot tone={isOnline(entry.lastSeenAt) ? "good" : "stone"} />
                 <span className="text-sm font-medium text-ink-900">
                   {entry.nickname}
                 </span>

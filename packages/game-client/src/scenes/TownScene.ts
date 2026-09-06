@@ -97,8 +97,8 @@ export class TownScene extends Phaser.Scene {
           fontFamily: "var(--font-display), sans-serif",
           fontSize: "13px",
           color: "#fbf3e3",
-          stroke: "#2a2015",
-          strokeThickness: 3,
+          backgroundColor: isLocal ? "#c97f1f" : "#5c3820",
+          padding: { x: 5, y: 2 },
         })
         .setOrigin(0.5, 1)
         .setDepth(11);
@@ -207,8 +207,8 @@ export class TownScene extends Phaser.Scene {
             fontFamily: "var(--font-display), sans-serif",
             fontSize: "12px",
             color: "#fbf3e3",
-            stroke: "#2a2015",
-            strokeThickness: 3,
+            backgroundColor: "#3a2415",
+            padding: { x: 6, y: 3 },
           },
         )
         .setOrigin(0.5, 0.5)
