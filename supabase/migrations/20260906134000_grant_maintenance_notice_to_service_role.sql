@@ -1,0 +1,18 @@
+-- Phase 6.5 production verification finding, reproduced against a real
+-- local Supabase instance: apps/game-server's supabasePersistence.ts calls
+-- get_active_maintenance_notice() using the service-role client (its own
+-- comment there claims the function is "granted to anon/authenticated/
+-- service_role alike"), but 20260906060000_public_read_hardening.sql only
+-- ever granted EXECUTE to anon and authenticated. The real call failed with
+-- "permission denied for function get_active_maintenance_notice", which
+-- isMaintenanceActive() catches and treats as "fails open" (a deliberate
+-- fallback for a transient/unreachable-database error) -- but this error is
+-- permanent and deterministic, not transient, so in practice the Colyseus
+-- Maintenance Gate's own maintenance check has never been able to return
+-- true: new Colyseus joins would never actually be blocked during
+-- maintenance in a real deployment, only in tests (which use FakePersistence
+-- and never exercise this grant at all).
+--
+-- get_latest_published_announcement() needs no equivalent fix -- nothing in
+-- this project calls it with the service-role client.
+grant execute on function public.get_active_maintenance_notice () to service_role;
