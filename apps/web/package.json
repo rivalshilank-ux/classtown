@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "create-admin": "tsx scripts/create-admin.ts",
+    "hash-admin-code": "tsx scripts/hash-admin-code.ts"
   },
   "dependencies": {
     "@classtown/game-client": "workspace:*",
@@ -18,6 +20,7 @@
     "@classtown/ui": "workspace:*",
     "@supabase/ssr": "0.12.5",
     "@supabase/supabase-js": "2.115.0",
+    "groq-sdk": "1.6.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -33,6 +36,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.13",
     "typescript": "6.0.3",
     "vitest": "5.0.0"
   }

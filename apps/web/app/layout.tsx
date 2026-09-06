@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Do_Hyeon, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import { AdminShortcutListener } from "./_components/AdminShortcutListener";
 
 const doHyeon = Do_Hyeon({
   weight: "400",
@@ -25,7 +26,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko" className={`${doHyeon.variable} ${notoSansKr.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AdminShortcutListener />
+        {children}
+      </body>
     </html>
   );
 }

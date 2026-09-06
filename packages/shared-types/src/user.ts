@@ -15,6 +15,14 @@ export interface TeacherAccount extends BaseAccount {
   updatedAt: string;
 }
 
+export interface AdminAccount extends BaseAccount {
+  role: "admin";
+  name: string;
+  email: string;
+  isActive: boolean;
+  updatedAt: string;
+}
+
 /**
  * Students do not have accounts. A participant is a character sheet scoped to
  * one class, addressed by a server-generated code — no email, no password, no
