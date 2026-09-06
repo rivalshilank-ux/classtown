@@ -124,6 +124,94 @@ describe("TownRoom", () => {
     });
   });
 
+  describe("maintenance mode", () => {
+    it("rejects a new join while maintenance is active", async () => {
+      persistence.setMaintenanceActive(true);
+      const client = new Client(endpoint);
+
+      await expect(
+        client.joinOrCreate<TownRoomState>("town", { ticket: ticketFor("Alex") }),
+      ).rejects.toThrow();
+    });
+
+    it("does not disconnect a player already in the room when maintenance starts mid-session", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      persistence.setMaintenanceActive(true);
+      await sleep(150);
+
+      expect(room.state.players.get(room.sessionId)?.nickname).toBe("Alex");
+      room.send("move", { dx: 1, dy: 0 });
+      await waitFor(() => (room.state.players.get(room.sessionId)?.x ?? 0) > SPAWN_POINT.x);
+
+      await room.leave();
+    });
+
+    it("admits a new join again once maintenance ends", async () => {
+      persistence.setMaintenanceActive(true);
+      await expect(
+        new Client(endpoint).joinOrCreate<TownRoomState>("town", {
+          ticket: ticketFor("Alex"),
+        }),
+      ).rejects.toThrow();
+
+      persistence.setMaintenanceActive(false);
+      const room = await join("Sam");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      expect(room.state.players.get(room.sessionId)?.nickname).toBe("Sam");
+
+      await room.leave();
+    });
+  });
+
+  describe("reconnection", () => {
+    it("drops the older session when the same participant joins a second time (multi-device)", async () => {
+      const identity = {
+        participantId: "22222222-2222-4222-8222-000000000042",
+        classId: CLASS_ID,
+        nickname: "Alex",
+      };
+      const firstTicket = persistence.issueTicket(identity);
+      const first = await new Client(endpoint).joinOrCreate<TownRoomState>("town", {
+        ticket: firstTicket,
+      });
+      await waitFor(() => first.state.players?.get(first.sessionId) !== undefined);
+
+      let firstLeaveCode: number | undefined;
+      first.onLeave((code) => {
+        firstLeaveCode = code;
+      });
+
+      const secondTicket = persistence.issueTicket(identity);
+      const second = await new Client(endpoint).joinOrCreate<TownRoomState>("town", {
+        ticket: secondTicket,
+      });
+      await waitFor(() => second.state.players?.get(second.sessionId) !== undefined);
+
+      await waitFor(() => firstLeaveCode !== undefined);
+      await waitFor(() => second.state.players.size === 1);
+      expect(second.state.players.get(second.sessionId)?.nickname).toBe("Alex");
+
+      await second.leave();
+    });
+
+    it("does not drop a session belonging to a different participant", async () => {
+      const alex = await join("Alex");
+      await waitFor(() => alex.state.players?.get(alex.sessionId) !== undefined);
+
+      const sam = await join("Sam");
+      await waitFor(() => sam.state.players?.get(sam.sessionId) !== undefined);
+
+      // Both still present -- reconnection only drops a match on participantId,
+      // never merely "someone else joined the same room."
+      await waitFor(() => alex.state.players.size === 2);
+
+      await alex.leave();
+      await sam.leave();
+    });
+  });
+
   describe("persistence", () => {
     it("records a join event and marks the participant seen", async () => {
       const room = await join("Alex");
@@ -159,11 +247,13 @@ describe("TownRoom", () => {
           "addPlaySeconds",
           "consumeJoinTicket",
           "events",
+          "isMaintenanceActive",
           "issueTicket",
           "markSeen",
           "playSeconds",
           "recordEvent",
           "seen",
+          "setMaintenanceActive",
         ].sort(),
       );
 
