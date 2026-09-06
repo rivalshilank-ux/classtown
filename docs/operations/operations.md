@@ -2,9 +2,11 @@
 
 ## Status
 
-In Progress — deployment is Implemented (manual/git-triggered); scheduled
-maintenance, automated backups, dependency scanning, regression
-automation, and ops reporting are Planned.
+In Progress — deployment is Implemented (manual/git-triggered); manually
+admin-triggered maintenance mode and announcements are Implemented (see
+[`../admin/admin.md`](../admin/admin.md)); scheduled/automated maintenance,
+automated backups, dependency scanning, regression automation, and ops
+reporting are Planned.
 
 ## Purpose
 
@@ -49,16 +51,34 @@ locally (`pnpm start` / `pnpm dev`) during development and verification.
   `pnpm test`, `pnpm build` are run manually from the repo root before
   each deployment step; there is no CI pipeline running these
   automatically on push today.
+- **Maintenance mode**: an admin can start/end a maintenance window from
+  `/admin/system` (`public.maintenance_windows`, server-authoritative --
+  see [`../admin/admin.md`](../admin/admin.md)). A currently active window
+  is surfaced on the landing, teacher, and student entry pages, and — as of
+  Phase 3.5 — actually blocks new student joins, teacher mutations, and new
+  Colyseus joins server-side (never disconnecting a player already
+  connected). Nothing starts or ends a window automatically; it is always
+  an explicit admin action.
+- **Announcements**: an admin can draft and publish a site-wide
+  announcement from `/admin/announcements` (`public.system_announcements`).
+  A "scheduled" announcement does not publish itself at its scheduled time
+  -- publishing is always a manual admin action until a scheduler exists.
+- **Database health check**: `/admin/system` runs a real, on-demand
+  Supabase reachability probe -- not scheduled or monitored outside of an
+  admin loading that page.
 
 ## Planned
 
 None of the following is automated or scheduled today:
 
-- Regular update cadence, and pre/post-update announcements.
-- Scheduled maintenance windows (e.g. midnight/dawn maintenance, a
-  weekly Sunday-dawn maintenance window).
+- Regular update cadence.
+- Automatically publishing a scheduled announcement, or automatically
+  starting/ending a maintenance window on a schedule (e.g. a weekly
+  Sunday-dawn maintenance window) -- both exist today only as manual admin
+  actions (see Current Implementation above).
 - Emergency security patch process.
-- Database health checks.
+- Continuous/scheduled database health monitoring (today's check is
+  on-demand only, run when an admin loads `/admin/system`).
 - Log management and retention policy.
 - Backup and restore process (Supabase's own backup capabilities have
   not been configured or verified for this project).

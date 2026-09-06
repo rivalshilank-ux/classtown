@@ -1,0 +1,34 @@
+name: CI
+
+# Fills a gap docs/operations/operations.md has listed under Planned since
+# the project started: typecheck/lint/test/build were previously run by
+# hand before every deploy. This is that same gate, running automatically.
+# It is also what apps/web's weekly-update pipeline checks the status of
+# before ever deploying -- see docs/adr/0007-scheduler-and-deployment-pipeline.md.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
