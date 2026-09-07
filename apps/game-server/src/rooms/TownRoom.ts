@@ -7,6 +7,7 @@ import {
   PlayerState,
   SPAWN_POINT,
   TownRoomState,
+  type FacingDirection,
   type MoveIntentInput,
 } from "@classtown/shared-schema";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
@@ -41,6 +42,35 @@ function canOccupy(x: number, y: number): boolean {
     !isSolidAtPixel(x - COLLISION_RADIUS, y + COLLISION_RADIUS) &&
     !isSolidAtPixel(x + COLLISION_RADIUS, y + COLLISION_RADIUS)
   );
+}
+
+// Scatters simultaneous joiners around the plaza instead of stacking every
+// new player on the exact same pixel, while keeping everyone in the same
+// gathering spot so friends who join together still land next to each other.
+const SPAWN_JITTER_RADIUS_PX = 48;
+const SPAWN_JITTER_ATTEMPTS = 8;
+
+function pickSpawnPosition(): { x: number; y: number } {
+  for (let attempt = 0; attempt < SPAWN_JITTER_ATTEMPTS; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * SPAWN_JITTER_RADIUS_PX;
+    const x = SPAWN_POINT.x + Math.cos(angle) * radius;
+    const y = SPAWN_POINT.y + Math.sin(angle) * radius;
+    if (canOccupy(x, y)) {
+      return { x, y };
+    }
+  }
+  // Every jittered attempt landed on something solid (very unlikely inside
+  // the open plaza) -- the exact spawn point is always walkable.
+  return { x: SPAWN_POINT.x, y: SPAWN_POINT.y };
+}
+
+/** Dominant axis of the intent wins; ties resolve to vertical. */
+function directionFromIntent(intent: MoveIntentInput): FacingDirection {
+  if (Math.abs(intent.dx) > Math.abs(intent.dy)) {
+    return intent.dx > 0 ? "right" : "left";
+  }
+  return intent.dy > 0 ? "down" : "up";
 }
 
 export interface TownRoomOptions {
@@ -132,11 +162,12 @@ export class TownRoom extends Room<TownRoomState> {
       }
     }
 
+    const spawn = pickSpawnPosition();
     const player = new PlayerState();
     player.sessionId = client.sessionId;
     player.nickname = auth.nickname;
-    player.x = SPAWN_POINT.x;
-    player.y = SPAWN_POINT.y;
+    player.x = spawn.x;
+    player.y = spawn.y;
     this.state.players.set(client.sessionId, player);
     this.moveIntents.set(client.sessionId, { dx: 0, dy: 0 });
     this.sessions.set(client.sessionId, { identity: auth, joinedAt: Date.now() });
@@ -225,6 +256,8 @@ export class TownRoom extends Room<TownRoomState> {
       if (magnitude === 0) {
         continue;
       }
+
+      player.direction = directionFromIntent(intent);
 
       const scale = (MOVE_SPEED * deltaSeconds) / Math.max(magnitude, 1);
 

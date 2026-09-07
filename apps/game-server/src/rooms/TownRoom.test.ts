@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { Client } from "colyseus.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SPAWN_POINT, TownRoomState } from "@classtown/shared-schema";
+import { isSolidAtPixel, SPAWN_POINT, TownRoomState } from "@classtown/shared-schema";
 import { createGameServer } from "../server.js";
 import {
   createFakePersistence,
@@ -264,31 +264,52 @@ describe("TownRoom", () => {
   describe("movement", () => {
     it("applies a valid move intent to the player's authoritative position", async () => {
       const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      const spawn = room.state.players.get(room.sessionId)!;
+      const spawnX = spawn.x;
+      const spawnY = spawn.y;
 
       room.send("move", { dx: 1, dy: 0 });
 
-      await waitFor(() => {
-        const player = room.state.players?.get(room.sessionId);
-        return player !== undefined && player.x > SPAWN_POINT.x;
-      });
+      await waitFor(() => (room.state.players.get(room.sessionId)?.x ?? spawnX) > spawnX);
 
       const player = room.state.players.get(room.sessionId);
-      expect(player?.x).toBeGreaterThan(SPAWN_POINT.x);
-      expect(player?.y).toBe(SPAWN_POINT.y);
+      expect(player?.x).toBeGreaterThan(spawnX);
+      expect(player?.y).toBe(spawnY);
+      expect(player?.direction).toBe("right");
 
       await room.leave();
     });
 
-    it("spawns the player on the open plaza tile", async () => {
+    it("spawns the player on a walkable tile near the plaza", async () => {
       const room = await join("Alex");
 
       await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
 
       const player = room.state.players.get(room.sessionId);
-      expect(player?.x).toBe(SPAWN_POINT.x);
-      expect(player?.y).toBe(SPAWN_POINT.y);
+      expect(player).toBeDefined();
+      expect(isSolidAtPixel(player!.x, player!.y)).toBe(false);
+      expect(Math.hypot(player!.x - SPAWN_POINT.x, player!.y - SPAWN_POINT.y)).toBeLessThanOrEqual(
+        48,
+      );
+      expect(player?.direction).toBe("down");
 
       await room.leave();
+    });
+
+    it("scatters simultaneous joiners instead of stacking them on one pixel", async () => {
+      const rooms = await Promise.all([join("A"), join("B"), join("C"), join("D")]);
+      await Promise.all(
+        rooms.map((room) => waitFor(() => room.state.players?.get(room.sessionId) !== undefined)),
+      );
+
+      const positions = rooms.map((room) => {
+        const player = room.state.players.get(room.sessionId)!;
+        return `${player.x},${player.y}`;
+      });
+      expect(new Set(positions).size).toBe(positions.length);
+
+      await Promise.all(rooms.map((room) => room.leave()));
     });
 
     it("stops a player at a solid wall instead of letting them pass through it", async () => {
@@ -310,13 +331,16 @@ describe("TownRoom", () => {
     it("ignores a move intent outside the validated range", async () => {
       const room = await join("Alex");
       await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      const spawn = room.state.players.get(room.sessionId)!;
+      const spawnX = spawn.x;
+      const spawnY = spawn.y;
 
       room.send("move", { dx: 5, dy: 5 });
       await sleep(150);
 
       const player = room.state.players.get(room.sessionId);
-      expect(player?.x).toBe(SPAWN_POINT.x);
-      expect(player?.y).toBe(SPAWN_POINT.y);
+      expect(player?.x).toBe(spawnX);
+      expect(player?.y).toBe(spawnY);
 
       await room.leave();
     });
@@ -324,13 +348,16 @@ describe("TownRoom", () => {
     it("ignores a malformed move message instead of trusting a client-sent position", async () => {
       const room = await join("Alex");
       await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      const spawn = room.state.players.get(room.sessionId)!;
+      const spawnX = spawn.x;
+      const spawnY = spawn.y;
 
       room.send("move", { x: 999, y: 999 });
       await sleep(150);
 
       const player = room.state.players.get(room.sessionId);
-      expect(player?.x).toBe(SPAWN_POINT.x);
-      expect(player?.y).toBe(SPAWN_POINT.y);
+      expect(player?.x).toBe(spawnX);
+      expect(player?.y).toBe(spawnY);
 
       await room.leave();
     });

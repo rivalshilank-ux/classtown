@@ -5,10 +5,10 @@ import {
   MAP_COLS,
   MAP_GRID,
   MAP_ROWS,
-  PLAYER_RADIUS,
   TILE_SIZE,
   WORLD_HEIGHT,
   WORLD_WIDTH,
+  type FacingDirection,
   type MoveIntentInput,
   type TileType,
   type TownRoomState,
@@ -16,10 +16,26 @@ import {
 import type { KeyboardInput } from "../KeyboardInput";
 import { computeMoveIntent, moveIntentsEqual } from "../input";
 import { sendMoveIntent } from "../moveSender";
+import {
+  CHARACTER_HEIGHT,
+  characterTextureKey,
+  generateCharacterTextures,
+  paletteIndexForSession,
+  type CharacterFrame,
+} from "../characterSprite";
 
-const LOCAL_PLAYER_COLOR = 0x38bdf8;
-const REMOTE_PLAYER_COLOR = 0x94a3b8;
-const PLAYER_OUTLINE_COLOR = 0x2a2015;
+/**
+ * How long without a position update before a player is considered stopped.
+ * The server ticks movement at 20Hz (50ms between updates while genuinely
+ * moving), so this comfortably distinguishes "still moving" from "stopped"
+ * without noticeable lag on the idle transition.
+ */
+const MOVEMENT_TIMEOUT_MS = 160;
+
+/** How fast the two walk frames alternate while a player is moving. */
+const WALK_FRAME_INTERVAL_MS = 150;
+
+const CAMERA_ZOOM = 2;
 
 const TILE_FILL: Record<TileType, number> = {
   grass: 0x5c9c43,
@@ -59,12 +75,25 @@ export interface TownSceneData {
   keyboard: KeyboardInput;
 }
 
+interface PlayerVisual {
+  sprite: Phaser.GameObjects.Sprite;
+  label: Phaser.GameObjects.Text;
+  localMarker?: Phaser.GameObjects.Ellipse;
+  paletteIndex: number;
+  direction: FacingDirection;
+  frame: CharacterFrame;
+  /** Scene-time (this.time.now) of the last x/y update from the server. */
+  lastMoveAt: number;
+  moving: boolean;
+}
+
+const LABEL_OFFSET_Y = CHARACTER_HEIGHT / 2 + 6;
+
 export class TownScene extends Phaser.Scene {
   private room!: Room<TownRoomState>;
   private keyboard!: KeyboardInput;
   private lastSentIntent: MoveIntentInput = { dx: 0, dy: 0 };
-  private circles = new Map<string, Phaser.GameObjects.Arc>();
-  private labels = new Map<string, Phaser.GameObjects.Text>();
+  private players = new Map<string, PlayerVisual>();
 
   constructor() {
     super("town");
@@ -76,24 +105,31 @@ export class TownScene extends Phaser.Scene {
   }
 
   create() {
+    generateCharacterTextures(this);
     this.buildWorld();
 
     const $ = getStateCallbacks(this.room);
 
     $(this.room.state).players.onAdd((player, sessionId) => {
       const isLocal = sessionId === this.room.sessionId;
-      const circle = this.add.circle(
+      const paletteIndex = paletteIndexForSession(sessionId);
+      const direction: FacingDirection = player.direction;
+
+      let localMarker: Phaser.GameObjects.Ellipse | undefined;
+      if (isLocal) {
+        localMarker = this.add.ellipse(player.x, player.y + 14, 22, 10, 0xfff3d6, 0.55);
+        localMarker.setDepth(9);
+      }
+
+      const sprite = this.add.sprite(
         player.x,
         player.y,
-        PLAYER_RADIUS,
-        isLocal ? LOCAL_PLAYER_COLOR : REMOTE_PLAYER_COLOR,
+        characterTextureKey(paletteIndex, direction, 0),
       );
-      circle.setStrokeStyle(2, PLAYER_OUTLINE_COLOR);
-      circle.setDepth(10);
-      this.circles.set(sessionId, circle);
+      sprite.setDepth(10);
 
       const label = this.add
-        .text(player.x, player.y - PLAYER_RADIUS - 6, player.nickname, {
+        .text(player.x, player.y - LABEL_OFFSET_Y, player.nickname, {
           fontFamily: "var(--font-display), sans-serif",
           fontSize: "13px",
           color: "#fbf3e3",
@@ -102,35 +138,80 @@ export class TownScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 1)
         .setDepth(11);
-      this.labels.set(sessionId, label);
+
+      const visual: PlayerVisual = {
+        sprite,
+        label,
+        localMarker,
+        paletteIndex,
+        direction,
+        frame: 0,
+        lastMoveAt: this.time.now,
+        moving: false,
+      };
+      this.players.set(sessionId, visual);
 
       if (isLocal) {
-        this.cameras.main.startFollow(circle, true, 0.1, 0.1);
+        this.cameras.main.startFollow(sprite, true, 0.1, 0.1);
       }
 
-      $(player).listen("x", (value) => {
-        circle.setPosition(value, circle.y);
-        label.setPosition(value, label.y);
-      });
-      $(player).listen("y", (value) => {
-        circle.setPosition(circle.x, value);
-        label.setPosition(label.x, value - PLAYER_RADIUS - 6);
+      const onPositionChange = (x: number, y: number) => {
+        sprite.setPosition(x, y);
+        label.setPosition(x, y - LABEL_OFFSET_Y);
+        localMarker?.setPosition(x, y + 14);
+        visual.lastMoveAt = this.time.now;
+        visual.moving = true;
+      };
+      $(player).listen("x", (value) => onPositionChange(value, sprite.y));
+      $(player).listen("y", (value) => onPositionChange(sprite.x, value));
+
+      $(player).listen("direction", (value: FacingDirection) => {
+        visual.direction = value;
+        sprite.setTexture(characterTextureKey(visual.paletteIndex, visual.direction, visual.frame));
       });
     });
 
     $(this.room.state).players.onRemove((_player, sessionId) => {
-      this.circles.get(sessionId)?.destroy();
-      this.circles.delete(sessionId);
-      this.labels.get(sessionId)?.destroy();
-      this.labels.delete(sessionId);
+      const visual = this.players.get(sessionId);
+      visual?.sprite.destroy();
+      visual?.label.destroy();
+      visual?.localMarker?.destroy();
+      this.players.delete(sessionId);
     });
   }
 
   update() {
+    this.updatePlayerAnimations();
+
     const intent = computeMoveIntent(this.keyboard.getState());
     if (!moveIntentsEqual(intent, this.lastSentIntent)) {
       sendMoveIntent(this.room, intent);
       this.lastSentIntent = intent;
+    }
+  }
+
+  /**
+   * Idle/walk state is derived client-side from how recently a player's
+   * position last changed, rather than a server-broadcast "isMoving" flag --
+   * one fewer schema field, and it works identically for the local and every
+   * remote player off the same PlayerState.x/y updates already being synced.
+   */
+  private updatePlayerAnimations() {
+    const now = this.time.now;
+    const walkFrame: CharacterFrame = Math.floor(now / WALK_FRAME_INTERVAL_MS) % 2 === 0 ? 0 : 1;
+
+    for (const visual of this.players.values()) {
+      if (visual.moving && now - visual.lastMoveAt > MOVEMENT_TIMEOUT_MS) {
+        visual.moving = false;
+      }
+
+      const targetFrame: CharacterFrame = visual.moving ? walkFrame : 0;
+      if (targetFrame !== visual.frame) {
+        visual.frame = targetFrame;
+        visual.sprite.setTexture(
+          characterTextureKey(visual.paletteIndex, visual.direction, visual.frame),
+        );
+      }
     }
   }
 
@@ -216,5 +297,10 @@ export class TownScene extends Phaser.Scene {
     }
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    // Zoomed in enough that a typical laptop viewport shows roughly a
+    // quarter of the map at once -- the world reads as a place to explore
+    // rather than something fully visible at a glance, and the character
+    // stays clearly readable.
+    this.cameras.main.setZoom(CAMERA_ZOOM);
   }
 }

@@ -53,6 +53,19 @@ KeyboardInput (browser events)
   along a wall instead of stopping dead on a diagonal collision.
 - There is no per-player speed variation — every player moves at the same
   `MOVE_SPEED`.
+- `PlayerState.direction` (`"up" | "down" | "left" | "right"`, default
+  `"down"`) is set server-side from the intent's dominant axis whenever
+  its magnitude is nonzero — including when the resulting move is
+  blocked, so pushing into a wall still turns the character to face it.
+  It holds its last value while idle. The client never computes this
+  itself; it only renders whatever `PlayerState` broadcasts, same as
+  `x`/`y`.
+- Idle vs. walking is *not* a schema field — the client
+  (`TownScene.updatePlayerAnimations()`) infers it per player from how
+  recently that player's `x`/`y` last changed (see [`map.md`](./map.md)
+  for how this drives character rendering). This keeps the schema
+  minimal and works identically for the local player and every remote
+  one, off the same position updates already being synced.
 
 ## Planned
 
@@ -66,13 +79,17 @@ See [`../security/security.md`](../security/security.md).
 
 ## Testing
 
-`apps/game-server/src/rooms/TownRoom.test.ts` covers: normal movement,
-invalid input (out-of-range and malformed messages are dropped),
-authoritative position (client-claimed position is never trusted),
-stopping at a solid wall, multi-client synchronization, and — a player's
-position never drifts on stale input during an unconsented drop's
-reconnection window. `packages/game-client/src/moveSender.test.ts`
-covers client-side intent validation.
+`apps/game-server/src/rooms/TownRoom.test.ts` covers: normal movement
+(including the resulting `direction`), invalid input (out-of-range and
+malformed messages are dropped), authoritative position (client-claimed
+position is never trusted), stopping at a solid wall, multi-client
+synchronization, and — a player's position never drifts on stale input
+during an unconsented drop's reconnection window.
+`packages/game-client/src/moveSender.test.ts` covers client-side intent
+validation. Idle/walk animation state and character rendering
+(`TownScene`, `characterSprite.ts`) have no automated test — consistent
+with the rest of `TownScene`'s Phaser rendering code, which is verified
+by manual/visual testing rather than vitest.
 
 ## Related Documents
 
