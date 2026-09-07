@@ -697,7 +697,7 @@ export type Database = {
       regenerate_class_code: { Args: { p_class_id: string }; Returns: string }
     }
     Enums: {
-      activity_event_type: "joined" | "left"
+      activity_event_type: "joined" | "left" | "activity_completed"
       ai_execution_status: "pending" | "approved" | "rejected" | "executed" | "failed"
       announcement_status: "draft" | "scheduled" | "published" | "expired"
       audit_actor_type: "admin" | "system" | "ai"
@@ -847,7 +847,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      activity_event_type: ["joined", "left"],
+      activity_event_type: ["joined", "left", "activity_completed"],
       ai_execution_status: ["pending", "approved", "rejected", "executed", "failed"],
       announcement_status: ["draft", "scheduled", "published", "expired"],
       audit_actor_type: ["admin", "system", "ai"],

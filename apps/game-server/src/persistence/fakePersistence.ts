@@ -3,7 +3,8 @@ import type { ClassPersistence, JoinIdentity } from "./types.js";
 export interface RecordedEvent {
   participantId: string;
   classId: string;
-  type: "joined" | "left";
+  type: "joined" | "left" | "activity_completed";
+  payload?: Record<string, unknown>;
 }
 
 export interface FakePersistence extends ClassPersistence {

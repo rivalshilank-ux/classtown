@@ -1,0 +1,11 @@
+-- Phase 14: the campus discovery tour (see docs/game/interaction.md) records
+-- one durable milestone when a student finds all interaction points, using
+-- the same teacher-visible student_activity_events feed "joined"/"left"
+-- already use (20260905050000_student_activity_events.sql) rather than a
+-- new table -- this is exactly the kind of discrete milestone that table's
+-- own comment describes itself as being for.
+--
+-- ALTER TYPE ... ADD VALUE cannot run inside the same transaction as a
+-- statement that uses the new value, but this file only adds the value --
+-- the game server is the first real user of it, in a later deploy.
+alter type public.activity_event_type add value 'activity_completed';

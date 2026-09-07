@@ -3,7 +3,7 @@
 ## Status
 
 In Progress. This document is an index over the game-design documents;
-most of what it links to is Planned. Only movement is Implemented.
+most of what it links to is Planned.
 
 ## Purpose
 
@@ -19,7 +19,8 @@ Colyseus/Phaser split. Gameplay design documents:
 | Document | Status |
 |---|---|
 | [`movement.md`](./movement.md) | Implemented |
-| [`map.md`](./map.md) | Planned |
+| [`map.md`](./map.md) | Implemented |
+| [`interaction.md`](./interaction.md) | Implemented |
 | [`tutorial.md`](./tutorial.md) | Planned |
 | [`game-modes.md`](./game-modes.md) | Planned |
 | [`cheat-system.md`](./cheat-system.md) | Planned |
@@ -31,10 +32,13 @@ Colyseus/Phaser split. Gameplay design documents:
 
 ## Current Implementation
 
-A single Colyseus room type, `TownRoom`, that accepts joins with a
-`{ joinCode, nickname }` pair (the join code is validated for shape only,
-not resolved against any real room registry) and synchronizes
-server-authoritative player positions. See [`movement.md`](./movement.md).
+A single Colyseus room type, `TownRoom`, that admits joins via a
+server-verified single-use ticket (never a client-supplied class code or
+identity -- see [`../architecture/overview.md`](../architecture/overview.md)),
+synchronizes server-authoritative player positions and facing direction
+(see [`movement.md`](./movement.md)) over a bounded campus map (see
+[`map.md`](./map.md)), and runs one complete gameplay loop -- the campus
+discovery tour (see [`interaction.md`](./interaction.md)).
 
 ## Planned
 
@@ -46,7 +50,8 @@ See [`../security/security.md`](../security/security.md).
 
 ## Testing
 
-See [`movement.md`](./movement.md#testing).
+See [`movement.md`](./movement.md#testing) and
+[`interaction.md`](./interaction.md#testing).
 
 ## Related Documents
 

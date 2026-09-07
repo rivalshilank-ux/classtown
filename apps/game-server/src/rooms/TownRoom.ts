@@ -1,5 +1,10 @@
 import { Client, Room, ServerError } from "@colyseus/core";
 import {
+  INTERACTION_POINTS,
+  INTERACTION_RANGE_PX,
+  interactionPointById,
+  interactionPointCenter,
+  interactMessageSchema,
   isSolidAtPixel,
   joinTicketOptionsSchema,
   moveIntentSchema,
@@ -7,8 +12,12 @@ import {
   PlayerState,
   SPAWN_POINT,
   TownRoomState,
+  type DiscoveryProgress,
   type FacingDirection,
+  type InteractResult,
   type MoveIntentInput,
+  type PlayerDiscoveryEvent,
+  type TourCompletedEvent,
 } from "@classtown/shared-schema";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import type { ClassPersistence, JoinIdentity } from "../persistence/types.js";
@@ -73,10 +82,18 @@ function directionFromIntent(intent: MoveIntentInput): FacingDirection {
   return intent.dy > 0 ? "down" : "up";
 }
 
+const TOTAL_INTERACTION_POINTS = INTERACTION_POINTS.length;
+
+/** Guards against a client spamming "interact" faster than a person could plausibly re-press a key. */
+const INTERACT_COOLDOWN_MS = 400;
+
 export interface TownRoomOptions {
   persistence: ClassPersistence;
   /** Overridable only for tests -- production always uses the real default. */
   reconnectionGraceSeconds?: number;
+  /** Overridable only for tests -- lets a full-campus-tour test cross the
+   * map in real time instead of ~160px/s. Production always uses MOVE_SPEED. */
+  moveSpeed?: number;
 }
 
 interface SessionRecord {
@@ -96,13 +113,27 @@ export class TownRoom extends Room<TownRoomState> {
    */
   private sessions = new Map<string, SessionRecord>();
 
+  /**
+   * Campus discovery tour progress, keyed by participantId (not sessionId)
+   * so it survives a reconnect -- see onJoin's discovery_progress send.
+   * Kept in room memory only; a completed tour is the one thing durably
+   * recorded, via persistence.recordEvent. Bounded by class roster size for
+   * the room's lifetime, never cleared on leave.
+   */
+  private discoveries = new Map<string, Set<string>>();
+
+  /** Per-session interact spam guard -- sessionId, not participantId, so a reconnect gets a clean cooldown. */
+  private lastInteractAt = new Map<string, number>();
+
   private persistence!: ClassPersistence;
   private reconnectionGraceSeconds = RECONNECTION_GRACE_SECONDS;
+  private moveSpeed = MOVE_SPEED;
 
   onCreate(options: TownRoomOptions) {
     this.persistence = options.persistence;
     this.reconnectionGraceSeconds =
       options.reconnectionGraceSeconds ?? RECONNECTION_GRACE_SECONDS;
+    this.moveSpeed = options.moveSpeed ?? MOVE_SPEED;
 
     this.setState(new TownRoomState());
     this.setSimulationInterval(
@@ -120,6 +151,23 @@ export class TownRoom extends Room<TownRoomState> {
         return;
       }
       this.moveIntents.set(client.sessionId, parsed.data);
+    });
+
+    this.onMessage("interact", (client, message: unknown) => {
+      const parsed = interactMessageSchema.safeParse(message);
+      if (!parsed.success) {
+        return;
+      }
+      this.handleInteract(client, parsed.data.pointId);
+    });
+
+    // Client-requested rather than pushed from onJoin: a message sent before
+    // the client has registered its onMessage handler for it is dropped, not
+    // buffered (colyseus.js has no queue for this), and onJoin's send would
+    // race exactly that handler's registration in TownScene.create(). The
+    // client asks once its listeners are definitely attached instead.
+    this.onMessage("request_progress", (client) => {
+      this.sendDiscoveryProgress(client);
     });
   }
 
@@ -180,6 +228,23 @@ export class TownRoom extends Room<TownRoomState> {
     });
   }
 
+  /** Restores a returning or reconnecting player's discovery UI from
+   * room-held progress -- discoveries survive by participantId even across
+   * a fresh sessionId. See the "request_progress" handler in onCreate for
+   * why this is pulled by the client rather than pushed from onJoin. */
+  private sendDiscoveryProgress(client: Client) {
+    const session = this.sessions.get(client.sessionId);
+    if (!session) {
+      return;
+    }
+    const discovered = this.discoveries.get(session.identity.participantId);
+    const progress: DiscoveryProgress = {
+      discoveredIds: discovered ? [...discovered] : [],
+      totalCount: TOTAL_INTERACTION_POINTS,
+    };
+    client.send("discovery_progress", progress);
+  }
+
   /**
    * `consented` is true for a deliberate leave (the client SDK called
    * `.leave()` -- including the multi-device kick above, which does exactly
@@ -195,6 +260,7 @@ export class TownRoom extends Room<TownRoomState> {
    */
   async onLeave(client: Client, consented: boolean) {
     this.moveIntents.delete(client.sessionId);
+    this.lastInteractAt.delete(client.sessionId);
 
     const record = this.sessions.get(client.sessionId);
     if (!record) {
@@ -259,7 +325,7 @@ export class TownRoom extends Room<TownRoomState> {
 
       player.direction = directionFromIntent(intent);
 
-      const scale = (MOVE_SPEED * deltaSeconds) / Math.max(magnitude, 1);
+      const scale = (this.moveSpeed * deltaSeconds) / Math.max(magnitude, 1);
 
       // Resolve each axis separately so the player slides along a wall
       // instead of getting fully stopped by a diagonal collision.
@@ -272,6 +338,97 @@ export class TownRoom extends Room<TownRoomState> {
       if (canOccupy(player.x, nextY)) {
         player.y = nextY;
       }
+    }
+  }
+
+  /**
+   * The campus discovery tour: walk up to one of the map's fixed
+   * INTERACTION_POINTS and interact with it. Every rule that matters --
+   * which points exist, whether the player is close enough, whether it was
+   * already found -- is decided here, never by the client. See
+   * docs/game/interaction.md.
+   */
+  private handleInteract(client: Client, pointId: string) {
+    const player = this.state.players.get(client.sessionId);
+    const session = this.sessions.get(client.sessionId);
+    if (!player || !session) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - (this.lastInteractAt.get(client.sessionId) ?? 0) < INTERACT_COOLDOWN_MS) {
+      return;
+    }
+
+    const point = interactionPointById(pointId);
+    if (!point) {
+      client.send("interact_result", {
+        ok: false,
+        pointId,
+        reason: "unknown_point",
+      } satisfies InteractResult);
+      return;
+    }
+
+    const center = interactionPointCenter(point);
+    const distance = Math.hypot(player.x - center.x, player.y - center.y);
+    if (distance > INTERACTION_RANGE_PX) {
+      client.send("interact_result", {
+        ok: false,
+        pointId,
+        reason: "out_of_range",
+      } satisfies InteractResult);
+      return;
+    }
+
+    this.lastInteractAt.set(client.sessionId, now);
+
+    const { participantId, classId } = session.identity;
+    let discovered = this.discoveries.get(participantId);
+    if (!discovered) {
+      discovered = new Set<string>();
+      this.discoveries.set(participantId, discovered);
+    }
+
+    const alreadyDiscovered = discovered.has(point.id);
+    if (!alreadyDiscovered) {
+      discovered.add(point.id);
+    }
+
+    const result: InteractResult = {
+      ok: true,
+      pointId: point.id,
+      label: point.label,
+      alreadyDiscovered,
+      discoveredIds: [...discovered],
+      totalCount: TOTAL_INTERACTION_POINTS,
+    };
+    client.send("interact_result", result);
+
+    if (alreadyDiscovered) {
+      return;
+    }
+
+    const discoveryEvent: PlayerDiscoveryEvent = {
+      sessionId: client.sessionId,
+      nickname: player.nickname,
+      label: point.label,
+    };
+    this.broadcast("player_discovery", discoveryEvent);
+
+    if (discovered.size === TOTAL_INTERACTION_POINTS) {
+      const completedEvent: TourCompletedEvent = {
+        sessionId: client.sessionId,
+        nickname: player.nickname,
+      };
+      this.broadcast("tour_completed", completedEvent);
+
+      void this.persistence.recordEvent({
+        participantId,
+        classId,
+        type: "activity_completed",
+        payload: { activity: "campus_tour" },
+      });
     }
   }
 }

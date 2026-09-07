@@ -27,7 +27,7 @@ export interface RosterEntry {
   xp: number;
 }
 
-export type ActivityEventType = "joined" | "left";
+export type ActivityEventType = "joined" | "left" | "activity_completed";
 
 export interface ActivityEntry {
   eventType: ActivityEventType;

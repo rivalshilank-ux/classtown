@@ -8,6 +8,7 @@ interface RecentActivityProps {
 const EVENT_LABEL: Record<ActivityEntry["eventType"], string> = {
   joined: "학교에 입장했어요",
   left: "학교에서 나갔어요",
+  activity_completed: "학교 탐방을 완료했어요",
 };
 
 function relativeTime(iso: string): string {

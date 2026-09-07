@@ -124,6 +124,25 @@ describe("supabasePersistence", () => {
         participant_id: "p1",
         class_id: "c1",
         event_type: "joined",
+        payload: {},
+      });
+    });
+
+    it("passes a payload through when the event carries one", async () => {
+      const persistence = createSupabasePersistence();
+
+      await persistence.recordEvent({
+        participantId: "p1",
+        classId: "c1",
+        type: "activity_completed",
+        payload: { activity: "campus_tour" },
+      });
+
+      expect(mockInsert).toHaveBeenCalledWith({
+        participant_id: "p1",
+        class_id: "c1",
+        event_type: "activity_completed",
+        payload: { activity: "campus_tour" },
       });
     });
   });

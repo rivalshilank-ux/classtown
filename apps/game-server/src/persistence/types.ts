@@ -23,7 +23,9 @@ export interface ClassPersistence {
     event: {
       participantId: string;
       classId: string;
-      type: "joined" | "left";
+      type: "joined" | "left" | "activity_completed";
+      /** Known keys only -- see student_activity_events.payload's own comment. */
+      payload?: Record<string, unknown>;
     },
   ): Promise<void>;
 

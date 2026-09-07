@@ -1,7 +1,22 @@
 import type { AddressInfo } from "node:net";
 import { Client } from "colyseus.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { isSolidAtPixel, SPAWN_POINT, TownRoomState } from "@classtown/shared-schema";
+import {
+  INTERACTION_POINTS,
+  interactionPointCenter,
+  isSolidAtPixel,
+  isSolidTile,
+  MAP_COLS,
+  MAP_ROWS,
+  SPAWN_POINT,
+  TILE_SIZE,
+  tileTypeAt,
+  TownRoomState,
+  type DiscoveryProgress,
+  type InteractResult,
+  type PlayerDiscoveryEvent,
+  type TourCompletedEvent,
+} from "@classtown/shared-schema";
 import { createGameServer } from "../server.js";
 import {
   createFakePersistence,
@@ -26,6 +41,175 @@ async function waitFor(
     await sleep(intervalMs);
   }
   throw new Error(`Condition not met within ${timeoutMs}ms`);
+}
+
+/** Waits until `getValue()` returns the same reading on two polls in a row,
+ * `intervalMs` apart. `waitFor`'s predicate fires once immediately on entry
+ * (before any sleep), so comparing against a value captured just before
+ * calling it can trivially "match" with zero real elapsed time -- this
+ * always sleeps before every comparison, including the first. */
+async function waitForStableValue<T>(
+  getValue: () => T,
+  { intervalMs = 150, timeoutMs = 5000 } = {},
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let previous = getValue();
+  while (Date.now() < deadline) {
+    await sleep(intervalMs);
+    const current = getValue();
+    if (current === previous) {
+      return current;
+    }
+    previous = current;
+  }
+  throw new Error(`Value never stabilized within ${timeoutMs}ms`);
+}
+
+/** Resolves with the next message of the given type -- interact_result et al. are private replies, not state. */
+function onceMessage<T>(room: { onMessage: (type: string, cb: (m: T) => void) => void }, type: string) {
+  return new Promise<T>((resolve) => {
+    room.onMessage(type, (message: T) => resolve(message));
+  });
+}
+
+/** BFS over the real tile grid (4-directional, walls/solids as declared by
+ * the actual map) -- most interaction points sit inside walled rooms, so
+ * straight-line steering would just walk the player into a wall. Several
+ * interaction points also sit exactly on a solid decorative tile (e.g.
+ * stage.event), so the destination is the nearest walkable tile to the
+ * point, not necessarily the point's own tile. */
+function findWalkableTileNear(col: number, row: number): { col: number; row: number } {
+  if (!isSolidTile(tileTypeAt(col, row))) {
+    return { col, row };
+  }
+  for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+    const c = col + dc;
+    const r = row + dr;
+    if (!isSolidTile(tileTypeAt(c, r))) {
+      return { col: c, row: r };
+    }
+  }
+  throw new Error(`No walkable tile adjacent to (${col},${row})`);
+}
+
+function findPath(
+  start: { col: number; row: number },
+  goal: { col: number; row: number },
+): Array<{ col: number; row: number }> {
+  const key = (c: number, r: number) => `${c},${r}`;
+  const visited = new Set([key(start.col, start.row)]);
+  const cameFrom = new Map<string, { col: number; row: number }>();
+  const queue: Array<{ col: number; row: number }> = [start];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current.col === goal.col && current.row === goal.row) {
+      const path: Array<{ col: number; row: number }> = [current];
+      let k = key(current.col, current.row);
+      while (cameFrom.has(k)) {
+        const prev = cameFrom.get(k)!;
+        path.unshift(prev);
+        k = key(prev.col, prev.row);
+      }
+      return path;
+    }
+
+    for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
+      const col = current.col + dc;
+      const row = current.row + dr;
+      if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) continue;
+      if (isSolidTile(tileTypeAt(col, row))) continue;
+      const k = key(col, row);
+      if (visited.has(k)) continue;
+      visited.add(k);
+      cameFrom.set(k, current);
+      queue.push({ col, row });
+    }
+  }
+
+  throw new Error(`No walkable path from (${start.col},${start.row}) to (${goal.col},${goal.row})`);
+}
+
+function toTile(pixel: { x: number; y: number }) {
+  return { col: Math.floor(pixel.x / TILE_SIZE), row: Math.floor(pixel.y / TILE_SIZE) };
+}
+
+function tilePixelCenter(tile: { col: number; row: number }) {
+  return { x: tile.col * TILE_SIZE + TILE_SIZE / 2, y: tile.row * TILE_SIZE + TILE_SIZE / 2 };
+}
+
+/** Walks the player, via a real wall-aware path, until within interact
+ * range of the target pixel position (an interaction point's own center,
+ * which may itself be a solid decorative tile -- see findWalkableTileNear). */
+async function moveNear(
+  room: { send: (type: string, message: unknown) => void; sessionId: string; state: TownRoomState },
+  target: { x: number; y: number },
+  { timeoutMs = 15000 } = {},
+) {
+  const player = room.state.players.get(room.sessionId);
+  if (!player) throw new Error("player not in room state yet");
+
+  const startTile = toTile(player);
+  // The walkable tile nearest the target, not necessarily the target's own
+  // tile -- several interaction points sit exactly on a solid decorative
+  // tile (a lab table, a counter, the event stage), same as the room's own
+  // findWalkableTileNear handles for a real player. That tile's center is
+  // always within one tile-step (<=32px) of the target, comfortably inside
+  // INTERACTION_RANGE_PX (44px), so there's no need to path any closer to
+  // the (possibly unreachable) exact target pixel.
+  const goalTile = findWalkableTileNear(toTile(target).col, toTile(target).row);
+  const path = findPath(startTile, goalTile);
+  const waypoints = path.map(tilePixelCenter);
+  const TILE_ARRIVAL_RADIUS = 14;
+  let waypointIndex = 0;
+
+  const steer = setInterval(() => {
+    const current = room.state.players.get(room.sessionId);
+    if (!current || waypoints.length === 0) return;
+
+    while (
+      waypointIndex < waypoints.length - 1 &&
+      Math.hypot(current.x - waypoints[waypointIndex]!.x, current.y - waypoints[waypointIndex]!.y) <
+        TILE_ARRIVAL_RADIUS
+    ) {
+      waypointIndex += 1;
+    }
+
+    const wp = waypoints[waypointIndex]!;
+    const dx = wp.x - current.x;
+    const dy = wp.y - current.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    // Ease in as the player nears the waypoint it's currently steering
+    // toward -- at speeds above default MOVE_SPEED, a constant full-speed
+    // vector would blow past a ~14px arrival window in a single 50ms tick
+    // and overshoot back and forth indefinitely.
+    const speedScale = Math.max(Math.min(1, distance / (TILE_ARRIVAL_RADIUS * 2)), 0.08);
+    room.send("move", { dx: (dx / distance) * speedScale, dy: (dy / distance) * speedScale });
+  }, 50);
+
+  try {
+    if (waypoints.length === 0) {
+      // Already standing on (or adjacent to) the target's own walkable tile.
+    } else {
+      await waitFor(
+        () => {
+          const current = room.state.players.get(room.sessionId);
+          const last = waypoints[waypoints.length - 1]!;
+          return !!current && Math.hypot(current.x - last.x, current.y - last.y) < TILE_ARRIVAL_RADIUS;
+        },
+        { timeoutMs },
+      );
+    }
+    // Lets the stop command take effect and any in-flight simulation ticks
+    // settle before the caller sends "interact" right after this returns --
+    // both that message and this stop have network latency to cross.
+    clearInterval(steer);
+    room.send("move", { dx: 0, dy: 0 });
+    await sleep(150);
+  } finally {
+    clearInterval(steer);
+    room.send("move", { dx: 0, dy: 0 });
+  }
 }
 
 describe("TownRoom", () => {
@@ -314,15 +498,28 @@ describe("TownRoom", () => {
 
     it("stops a player at a solid wall instead of letting them pass through it", async () => {
       const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      const spawnX = room.state.players.get(room.sessionId)!.x;
 
       room.send("move", { dx: 1, dy: 0 });
-      await sleep(2500);
 
-      const stoppedAt = room.state.players.get(room.sessionId)?.x;
+      // Confirm movement actually started before watching for it to stop --
+      // otherwise the stability check below could trivially "converge" on
+      // the pre-movement spawn position if it starts polling before the
+      // move message has even been processed.
+      await waitFor(() => (room.state.players.get(room.sessionId)?.x ?? spawnX) > spawnX + 4);
+
+      // Jittered spawn (see pickSpawnPosition) makes the exact time-to-wall
+      // variable, so wait for position to actually stop changing rather than
+      // assuming a fixed sleep is long enough.
+      const stoppedAt = await waitForStableValue(() => room.state.players.get(room.sessionId)?.x, {
+        timeoutMs: 5000,
+        intervalMs: 150,
+      });
       await sleep(300);
       const afterMoreTime = room.state.players.get(room.sessionId)?.x;
 
-      expect(stoppedAt).toBeGreaterThan(SPAWN_POINT.x);
+      expect(stoppedAt).toBeGreaterThan(spawnX);
       expect(afterMoreTime).toBe(stoppedAt);
 
       await room.leave();
@@ -514,5 +711,260 @@ describe("TownRoom", () => {
 
       await resumed.leave();
     });
+  });
+
+  describe("interaction (campus discovery tour)", () => {
+    // Open ground right by spawn -- fast and reachable in a near-straight
+    // line, so the single-point behavioral tests below don't each pay for a
+    // full cross-map walk through doors. The full tour test still exercises
+    // pathfinding into every walled room.
+    const firstPoint = INTERACTION_POINTS.find((p) => p.id === "notice.plaza")!;
+    const firstPointCenter = interactionPointCenter(firstPoint);
+    const farPoint = INTERACTION_POINTS.find((p) => p.id === "sign.playground")!;
+
+    it("discovers a point the player is within range of", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      await moveNear(room, firstPointCenter);
+
+      const resultPromise = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", { pointId: firstPoint.id });
+      const result = await resultPromise;
+
+      expect(result).toMatchObject({
+        ok: true,
+        pointId: firstPoint.id,
+        label: firstPoint.label,
+        alreadyDiscovered: false,
+        totalCount: INTERACTION_POINTS.length,
+      });
+      expect(result.discoveredIds).toContain(firstPoint.id);
+
+      await room.leave();
+    }, 10000);
+
+    it("reports alreadyDiscovered on a repeat interaction instead of erroring", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      await moveNear(room, firstPointCenter);
+
+      const first = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", { pointId: firstPoint.id });
+      const firstResult = await first;
+      expect(firstResult).toMatchObject({ ok: true, alreadyDiscovered: false });
+
+      await sleep(450); // past the per-player interact cooldown
+
+      const second = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", { pointId: firstPoint.id });
+      const result = await second;
+
+      expect(result).toMatchObject({ ok: true, alreadyDiscovered: true });
+
+      await room.leave();
+    }, 10000);
+
+    it("rejects an unknown point id", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      const resultPromise = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", { pointId: "not-a-real-point" });
+      const result = await resultPromise;
+
+      expect(result).toMatchObject({ ok: false, reason: "unknown_point" });
+
+      await room.leave();
+    });
+
+    it("rejects an interaction with a point that's out of range", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      // Never moved from spawn -- every real point is well outside range from there.
+
+      const resultPromise = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", { pointId: farPoint.id });
+      const result = await resultPromise;
+
+      expect(result).toMatchObject({ ok: false, reason: "out_of_range" });
+
+      await room.leave();
+    });
+
+    it("ignores forged progress/reward fields and computes the result itself", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      await moveNear(room, firstPointCenter);
+
+      // A client claiming it already found everything, or a reward amount,
+      // has no effect -- interactMessageSchema keeps only pointId, same as
+      // moveIntentSchema stripping anything beyond dx/dy.
+      const resultPromise = onceMessage<InteractResult>(room, "interact_result");
+      room.send("interact", {
+        pointId: firstPoint.id,
+        alreadyDiscovered: false,
+        discoveredIds: INTERACTION_POINTS.map((p) => p.id),
+        totalCount: 99,
+        reward: 999999,
+      });
+      const result = await resultPromise;
+
+      expect(result).toMatchObject({
+        ok: true,
+        alreadyDiscovered: false,
+        totalCount: INTERACTION_POINTS.length,
+      });
+      // The server's own count of one real discovery, not the forged 8-point claim.
+      expect(result.discoveredIds).toEqual([firstPoint.id]);
+
+      await room.leave();
+    }, 10000);
+
+    it("enforces a per-player cooldown between interactions", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      await moveNear(room, firstPointCenter);
+
+      const received: InteractResult[] = [];
+      room.onMessage("interact_result", (m: InteractResult) => received.push(m));
+
+      room.send("interact", { pointId: firstPoint.id });
+      room.send("interact", { pointId: firstPoint.id });
+      await sleep(150);
+      expect(received).toHaveLength(1);
+
+      await sleep(350); // past the 400ms cooldown
+      room.send("interact", { pointId: firstPoint.id });
+      await waitFor(() => received.length === 2);
+
+      await room.leave();
+    }, 10000);
+
+    it("broadcasts a player_discovery event other clients can see", async () => {
+      const alex = await join("Alex");
+      const sam = await join("Sam");
+      await waitFor(() => alex.state.players?.get(alex.sessionId) !== undefined);
+      await waitFor(() => sam.state.players?.get(sam.sessionId) !== undefined);
+
+      const discoveryOnSam = onceMessage<PlayerDiscoveryEvent>(sam, "player_discovery");
+      await moveNear(alex, firstPointCenter);
+      alex.send("interact", { pointId: firstPoint.id });
+
+      const event = await discoveryOnSam;
+      expect(event).toMatchObject({
+        sessionId: alex.sessionId,
+        nickname: "Alex",
+        label: firstPoint.label,
+      });
+
+      await alex.leave();
+      await sam.leave();
+    }, 10000);
+
+    it("keeps a player's discoveries across a real dropped-connection reconnect", async () => {
+      // A *consented* leave+rejoin (a fresh ticket, a fresh session) is a
+      // deliberate quit -- if that empties the room, Colyseus disposes it,
+      // and a later join creates a brand new TownRoom with nothing in
+      // memory. That's expected and matches every other in-memory room
+      // state (e.g. position). The actual "student's WiFi blips" reconnect
+      // this system needs to survive never empties the room in the first
+      // place -- allowReconnection (see onLeave) keeps it alive for exactly
+      // that reason, which is what this test exercises instead.
+      const reconnectServer = createGameServer({ persistence, reconnectionGraceSeconds: 2 });
+      await reconnectServer.gameServer.listen(0);
+      const { port } = reconnectServer.httpServer.address() as AddressInfo;
+      const reconnectEndpoint = `ws://localhost:${port}`;
+
+      try {
+        const client = new Client(reconnectEndpoint);
+        const room = await client.joinOrCreate<TownRoomState>("town", {
+          ticket: persistence.issueTicket({
+            participantId: "22222222-2222-4222-8222-000000000777",
+            classId: CLASS_ID,
+            nickname: "Alex",
+          }),
+        });
+        await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+        await moveNear(room, firstPointCenter);
+
+        const firstResultPromise = onceMessage<InteractResult>(room, "interact_result");
+        room.send("interact", { pointId: firstPoint.id });
+        const firstResult = await firstResultPromise;
+        expect(firstResult).toMatchObject({ ok: true, alreadyDiscovered: false });
+
+        await room.leave(false); // unconsented drop -- opens the reconnection window
+        await sleep(100);
+
+        const resumed = await new Client(reconnectEndpoint).reconnect<TownRoomState>(
+          room.reconnectionToken,
+        );
+        await waitFor(() => resumed.state.players?.get(resumed.sessionId) !== undefined);
+
+        const restoredPromise = onceMessage<DiscoveryProgress>(resumed, "discovery_progress");
+        resumed.send("request_progress");
+        const restored = await restoredPromise;
+
+        expect(restored.discoveredIds).toContain(firstPoint.id);
+        expect(restored.totalCount).toBe(INTERACTION_POINTS.length);
+
+        await resumed.leave();
+      } finally {
+        await reconnectServer.gameServer.gracefullyShutdown(false);
+      }
+    }, 10000);
+
+    it("completes the tour, broadcasts tour_completed, and records a durable milestone once every point is found", async () => {
+      const fastServer = createGameServer({ persistence, moveSpeed: 400 });
+      await fastServer.gameServer.listen(0);
+      const { port } = fastServer.httpServer.address() as AddressInfo;
+      const fastEndpoint = `ws://localhost:${port}`;
+
+      try {
+        const alex = new Client(fastEndpoint);
+        const alexRoom = await alex.joinOrCreate<TownRoomState>("town", {
+          ticket: persistence.issueTicket({
+            participantId: "22222222-2222-4222-8222-000000000888",
+            classId: CLASS_ID,
+            nickname: "Alex",
+          }),
+        });
+        const sam = new Client(fastEndpoint);
+        const samRoom = await sam.joinOrCreate<TownRoomState>("town", {
+          ticket: persistence.issueTicket({
+            participantId: "22222222-2222-4222-8222-000000000889",
+            classId: CLASS_ID,
+            nickname: "Sam",
+          }),
+        });
+        await waitFor(() => alexRoom.state.players?.get(alexRoom.sessionId) !== undefined);
+        await waitFor(() => samRoom.state.players?.get(samRoom.sessionId) !== undefined);
+
+        const completedOnSam = onceMessage<TourCompletedEvent>(samRoom, "tour_completed");
+
+        for (const point of INTERACTION_POINTS) {
+          await moveNear(alexRoom, interactionPointCenter(point), { timeoutMs: 20000 });
+          const resultPromise = onceMessage<InteractResult>(alexRoom, "interact_result");
+          alexRoom.send("interact", { pointId: point.id });
+          const result = await resultPromise;
+          expect(result.ok).toBe(true);
+        }
+
+        const completedEvent = await completedOnSam;
+        expect(completedEvent).toMatchObject({ sessionId: alexRoom.sessionId, nickname: "Alex" });
+
+        await waitFor(() =>
+          persistence.events.some(
+            (e) => e.type === "activity_completed" && e.participantId === "22222222-2222-4222-8222-000000000888",
+          ),
+        );
+        const completionEvent = persistence.events.find((e) => e.type === "activity_completed");
+        expect(completionEvent?.payload).toMatchObject({ activity: "campus_tour" });
+
+        await alexRoom.leave();
+        await samRoom.leave();
+      } finally {
+        await fastServer.gameServer.gracefullyShutdown(false);
+      }
+    }, 90000);
   });
 });

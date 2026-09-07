@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { progressionForPlaySeconds } from "@classtown/shared-schema";
-import type { Database } from "@classtown/shared-types/database";
+import type { Database, Json } from "@classtown/shared-types/database";
 import type { ClassPersistence, JoinIdentity } from "./types.js";
 
 /**
@@ -67,9 +67,15 @@ export function createSupabasePersistence(): ClassPersistence {
         participant_id: event.participantId,
         class_id: event.classId,
         event_type: event.type,
+        payload: (event.payload ?? {}) as Json,
       });
 
       if (error) {
+        // "activity_completed" fails closed here, harmlessly, until the
+        // migration adding it to activity_event_type is applied -- see
+        // supabase/migrations/*_activity_event_type_add_activity_completed.sql.
+        // The player already got their result; this only affects whether the
+        // teacher-visible milestone feed durably records it.
         console.error("recordEvent failed:", error.message);
       }
     },

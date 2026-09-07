@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import { getStateCallbacks, type Room } from "colyseus.js";
 import {
+  INTERACTION_POINTS,
+  INTERACTION_RANGE_PX,
+  interactionPointCenter,
   LANDMARKS,
   MAP_COLS,
   MAP_GRID,
@@ -8,9 +11,13 @@ import {
   TILE_SIZE,
   WORLD_HEIGHT,
   WORLD_WIDTH,
+  type DiscoveryProgress,
   type FacingDirection,
+  type InteractResult,
   type MoveIntentInput,
+  type PlayerDiscoveryEvent,
   type TileType,
+  type TourCompletedEvent,
   type TownRoomState,
 } from "@classtown/shared-schema";
 import type { KeyboardInput } from "../KeyboardInput";
@@ -36,6 +43,16 @@ const MOVEMENT_TIMEOUT_MS = 160;
 const WALK_FRAME_INTERVAL_MS = 150;
 
 const CAMERA_ZOOM = 2;
+
+/** Client-side echo of the server's interact cooldown -- purely to avoid spamming
+ * the network while a key is held/auto-repeating; the server enforces the real one. */
+const LOCAL_INTERACT_COOLDOWN_MS = 400;
+const DISCOVERY_BUBBLE_MS = 1400;
+const TOUR_TOAST_MS = 3500;
+const FEEDBACK_TEXT_MS = 1400;
+
+const MARKER_UNDISCOVERED = { glyph: "★", bg: "#f4d35e", color: "#2a2015" };
+const MARKER_DISCOVERED = { glyph: "✓", bg: "#8fd694", color: "#1c3d1c" };
 
 const TILE_FILL: Record<TileType, number> = {
   grass: 0x5c9c43,
@@ -94,6 +111,17 @@ export class TownScene extends Phaser.Scene {
   private keyboard!: KeyboardInput;
   private lastSentIntent: MoveIntentInput = { dx: 0, dy: 0 };
   private players = new Map<string, PlayerVisual>();
+
+  // Campus discovery tour (see docs/game/interaction.md).
+  private interactionMarkers = new Map<string, Phaser.GameObjects.Text>();
+  private discoveredIds = new Set<string>();
+  private nearestPointId: string | null = null;
+  private lastLocalInteractAt = 0;
+  private interactPrompt!: Phaser.GameObjects.Text;
+  private hudCounter!: Phaser.GameObjects.Text;
+  private feedbackText!: Phaser.GameObjects.Text;
+  private feedbackClearAt = 0;
+  private tourToast?: Phaser.GameObjects.Text;
 
   constructor() {
     super("town");
@@ -178,16 +206,240 @@ export class TownScene extends Phaser.Scene {
       visual?.localMarker?.destroy();
       this.players.delete(sessionId);
     });
+
+    this.buildInteractionMarkers();
+    this.buildHud();
+
+    this.room.onMessage("discovery_progress", (message: DiscoveryProgress) => {
+      this.applyDiscoveredIds(message.discoveredIds);
+    });
+
+    this.room.onMessage("interact_result", (message: InteractResult) => {
+      this.handleInteractResult(message);
+    });
+
+    this.room.onMessage("player_discovery", (message: PlayerDiscoveryEvent) => {
+      this.showDiscoveryBubble(message);
+    });
+
+    this.room.onMessage("tour_completed", (message: TourCompletedEvent) => {
+      this.showTourCompletedToast(message);
+    });
+
+    this.input.keyboard?.on("keydown-E", () => this.attemptInteract());
+
+    // Sent only now that every onMessage listener above is registered --
+    // see TownRoom's "request_progress" handler for why this can't be a
+    // push from the server's onJoin instead.
+    this.room.send("request_progress");
   }
 
   update() {
     this.updatePlayerAnimations();
+    this.updateNearestInteractable();
 
     const intent = computeMoveIntent(this.keyboard.getState());
     if (!moveIntentsEqual(intent, this.lastSentIntent)) {
       sendMoveIntent(this.room, intent);
       this.lastSentIntent = intent;
     }
+  }
+
+  /** Every INTERACTION_POINTS entry gets a small badge in the world, swapped
+   * to a "found" look once discovered -- see docs/game/interaction.md. */
+  private buildInteractionMarkers() {
+    for (const point of INTERACTION_POINTS) {
+      const center = interactionPointCenter(point);
+      const marker = this.add
+        .text(center.x, center.y, MARKER_UNDISCOVERED.glyph, {
+          fontSize: "16px",
+          color: MARKER_UNDISCOVERED.color,
+          backgroundColor: MARKER_UNDISCOVERED.bg,
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(2);
+      this.interactionMarkers.set(point.id, marker);
+    }
+  }
+
+  private buildHud() {
+    this.hudCounter = this.add
+      .text(0, 0, "", {
+        fontFamily: "var(--font-display), sans-serif",
+        fontSize: "13px",
+        color: "#fbf3e3",
+        backgroundColor: "#3a2415",
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
+    this.updateHudCounter();
+
+    this.interactPrompt = this.add
+      .text(0, 0, "", {
+        fontFamily: "var(--font-display), sans-serif",
+        fontSize: "14px",
+        color: "#2a2015",
+        backgroundColor: "#f4d35e",
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5, 1)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+
+    this.feedbackText = this.add
+      .text(0, 0, "", {
+        fontFamily: "var(--font-display), sans-serif",
+        fontSize: "14px",
+        color: "#fbf3e3",
+        backgroundColor: "#5c3820",
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5, 1)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
+
+    this.layoutHud();
+    this.scale.on("resize", () => this.layoutHud());
+  }
+
+  private layoutHud() {
+    const { width, height } = this.scale;
+    this.hudCounter.setPosition(width - 12, 12).setOrigin(1, 0);
+    this.interactPrompt.setPosition(width / 2, height - 24);
+    this.feedbackText.setPosition(width / 2, height - 60);
+  }
+
+  private updateHudCounter() {
+    this.hudCounter.setText(`탐방 발견 ${this.discoveredIds.size}/${INTERACTION_POINTS.length}`);
+  }
+
+  private applyDiscoveredIds(ids: readonly string[]) {
+    this.discoveredIds = new Set(ids);
+    for (const [pointId, marker] of this.interactionMarkers) {
+      const style = this.discoveredIds.has(pointId) ? MARKER_DISCOVERED : MARKER_UNDISCOVERED;
+      marker.setText(style.glyph);
+      marker.setColor(style.color);
+      marker.setBackgroundColor(style.bg);
+    }
+    this.updateHudCounter();
+  }
+
+  private showFeedback(text: string) {
+    this.feedbackText.setText(text).setVisible(true);
+    this.feedbackClearAt = this.time.now + FEEDBACK_TEXT_MS;
+  }
+
+  /** Finds the closest interaction point to the local player and shows/hides
+   * the "[E] ..." prompt -- purely a UI convenience; the server independently
+   * re-checks range on every interact attempt regardless of what this says. */
+  private updateNearestInteractable() {
+    const local = this.players.get(this.room.sessionId);
+
+    if (this.feedbackText && this.time.now > this.feedbackClearAt) {
+      this.feedbackText.setVisible(false);
+    }
+
+    if (!local) {
+      this.nearestPointId = null;
+      this.interactPrompt?.setVisible(false);
+      return;
+    }
+
+    let closestId: string | null = null;
+    let closestDistance = Infinity;
+    let closestLabel = "";
+    for (const point of INTERACTION_POINTS) {
+      const center = interactionPointCenter(point);
+      const distance = Math.hypot(local.sprite.x - center.x, local.sprite.y - center.y);
+      if (distance <= INTERACTION_RANGE_PX && distance < closestDistance) {
+        closestDistance = distance;
+        closestId = point.id;
+        closestLabel = point.label;
+      }
+    }
+
+    this.nearestPointId = closestId;
+    if (closestId) {
+      this.interactPrompt.setText(`[E] ${closestLabel} 조사하기`).setVisible(true);
+    } else {
+      this.interactPrompt.setVisible(false);
+    }
+  }
+
+  private attemptInteract() {
+    if (!this.nearestPointId) {
+      return;
+    }
+    const now = this.time.now;
+    if (now - this.lastLocalInteractAt < LOCAL_INTERACT_COOLDOWN_MS) {
+      return;
+    }
+    this.lastLocalInteractAt = now;
+    this.room.send("interact", { pointId: this.nearestPointId });
+  }
+
+  private handleInteractResult(result: InteractResult) {
+    if (!result.ok) {
+      if (result.reason === "out_of_range") {
+        this.showFeedback("너무 멀어요");
+      }
+      return;
+    }
+
+    this.applyDiscoveredIds(result.discoveredIds ?? []);
+    this.showFeedback(result.alreadyDiscovered ? "이미 확인했어요" : `발견! ${result.label}`);
+  }
+
+  private showDiscoveryBubble(event: PlayerDiscoveryEvent) {
+    const visual = this.players.get(event.sessionId);
+    if (!visual) {
+      return;
+    }
+
+    const bubble = this.add
+      .text(visual.sprite.x, visual.sprite.y - LABEL_OFFSET_Y - 18, `✨ ${event.label} 발견!`, {
+        fontFamily: "var(--font-display), sans-serif",
+        fontSize: "12px",
+        color: "#2a2015",
+        backgroundColor: "#f4d35e",
+        padding: { x: 5, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(12);
+
+    this.tweens.add({
+      targets: bubble,
+      y: bubble.y - 16,
+      alpha: 0,
+      duration: DISCOVERY_BUBBLE_MS,
+      onComplete: () => bubble.destroy(),
+    });
+  }
+
+  private showTourCompletedToast(event: TourCompletedEvent) {
+    this.tourToast?.destroy();
+
+    this.tourToast = this.add
+      .text(0, 0, `🎉 ${event.nickname}님이 학교 탐방을 완료했어요!`, {
+        fontFamily: "var(--font-display), sans-serif",
+        fontSize: "16px",
+        color: "#fbf3e3",
+        backgroundColor: "#c97f1f",
+        padding: { x: 12, y: 8 },
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(101);
+    this.tourToast.setPosition(this.scale.width / 2, 16);
+
+    this.time.delayedCall(TOUR_TOAST_MS, () => {
+      this.tourToast?.destroy();
+      this.tourToast = undefined;
+    });
   }
 
   /**

@@ -144,6 +144,14 @@ export const SPAWN_POINTS: readonly SpawnPointDefinition[] = [
   { id: "school.playground", zoneId: "school.playground", col: 40, row: 8 },
 ];
 
+/**
+ * How close (in pixels, center-to-center) a player must be to interact with
+ * a point. Shared between server (authoritative check) and client (deciding
+ * when to show the "[E] interact" prompt) so the two never disagree about
+ * what "close enough" means.
+ */
+export const INTERACTION_RANGE_PX = 44;
+
 export const INTERACTION_POINTS: readonly InteractionPoint[] = [
   { id: "sign.library", type: "generic", zoneId: "school.library", col: 6, row: 16, label: "도서관 안내판" },
   { id: "sign.science", type: "generic", zoneId: "school.science", col: 6, row: 23, label: "과학실 안내판" },
@@ -154,6 +162,15 @@ export const INTERACTION_POINTS: readonly InteractionPoint[] = [
   { id: "notice.plaza", type: "event", zoneId: "school.plaza", col: 23, row: 25, label: "광장 게시판" },
   { id: "stage.event", type: "event", zoneId: "school.event", col: 17, row: 25, label: "행사 무대" },
 ];
+
+export function interactionPointById(id: string): InteractionPoint | undefined {
+  return INTERACTION_POINTS.find((point) => point.id === id);
+}
+
+/** Pixel-space center of an interaction point's tile -- what range checks measure against. */
+export function interactionPointCenter(point: InteractionPoint): { x: number; y: number } {
+  return tileCenter(point.col, point.row);
+}
 
 function buildGrid(): TileType[][] {
   const grid: TileType[][] = Array.from({ length: MAP_ROWS }, () =>

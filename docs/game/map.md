@@ -80,7 +80,10 @@ four edges. It has:
   otherwise every point inside a sub-room would resolve to the
   containing zone instead.
 - `SPAWN_POINTS` / `INTERACTION_POINTS`: named points, each pinned to a
-  zone. Populated but inert — nothing reads `InteractionPointType` or
+  zone. Every `INTERACTION_POINTS` entry is now a live interaction target
+  (the campus discovery tour — see [`interaction.md`](./interaction.md)),
+  though uniformly regardless of its `InteractionPointType` — nothing yet
+  gives `npc` / `quest` / `event` / `generic` distinct behavior. Nothing
   picks among the named `SPAWN_POINTS` yet. `TownRoom` spawns every
   player near the single `SPAWN_POINT` (`school.plaza`): each join picks
   a random point within a 48px radius of it and re-rolls (up to 8 times)
@@ -95,9 +98,10 @@ four edges. It has:
 
 ## Planned
 
-- A system that actually reads `ZONES` / `INTERACTION_POINTS` (NPCs,
-  quests, events) — the data exists so that system doesn't need a new
-  location structure of its own.
+- A system that reads `ZONES`, or gives each `InteractionPointType` its
+  own behavior (NPCs, quests, events) instead of the uniform "discover
+  it" every `INTERACTION_POINTS` entry gets today — the data exists so
+  that system doesn't need a new location structure of its own.
 - Picking among the named `SPAWN_POINTS` themselves (e.g. per-class or
   per-event spawn zone) — today they're jittered around one point, not
   yet selected between.
@@ -126,4 +130,5 @@ automated suite.
 ## Related Documents
 
 - [`movement.md`](./movement.md)
+- [`interaction.md`](./interaction.md)
 - [`game-design.md`](./game-design.md)
