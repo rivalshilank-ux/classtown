@@ -1,19 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import { joinClass } from "./studentActions";
+import { getMyProgress, joinClass } from "./studentActions";
 import { resetRateLimits } from "./rateLimit";
+
+interface QueryResult {
+  data?: unknown;
+  error?: unknown;
+}
+
+/** Universal chainable + thenable stub -- every getMyProgress lookup is a
+ * plain .select().eq()...maybeSingle() chain, so one shape covers all three
+ * tables it touches. */
+function createQueryStub(getResult: () => QueryResult) {
+  const methods = ["select", "eq", "maybeSingle"] as const;
+  const stub: Record<string, unknown> = {};
+  for (const method of methods) {
+    stub[method] = vi.fn(() => stub);
+  }
+  stub.then = (onFulfilled: (v: QueryResult) => unknown, onRejected?: (e: unknown) => unknown) =>
+    Promise.resolve(getResult()).then(onFulfilled, onRejected);
+  return stub;
+}
 
 // vi.mock calls are hoisted above every other top-level statement -- with
 // more than one in a file, the mocked variables need vi.hoisted() or the
 // factory below runs before its `const` initializer does (a TDZ error).
-const { mockRpc, mockGetActiveMaintenanceNotice } = vi.hoisted(() => ({
+const { mockRpc, mockFrom, mockGetActiveMaintenanceNotice } = vi.hoisted(() => ({
   mockRpc: vi.fn(),
+  mockFrom: vi.fn(),
   mockGetActiveMaintenanceNotice: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
-  createSupabaseServiceClient: vi.fn(() => ({ rpc: mockRpc })),
+  createSupabaseServiceClient: vi.fn(() => ({ rpc: mockRpc, from: mockFrom })),
 }));
 
 vi.mock("next/headers", () => ({
@@ -145,5 +165,79 @@ describe("joinClass", () => {
       "join_class",
       expect.objectContaining({ p_participant_code: "XYZ789" }),
     );
+  });
+});
+
+describe("getMyProgress", () => {
+  const CLASS_ROW = { id: "class-1" };
+  const PARTICIPANT_ROW = { id: "participant-1" };
+
+  let classResult: QueryResult;
+  let participantResult: QueryResult;
+  let progressionResult: QueryResult;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetRateLimits();
+
+    classResult = { data: CLASS_ROW, error: null };
+    participantResult = { data: PARTICIPANT_ROW, error: null };
+    progressionResult = { data: { xp: 250, level: 3 }, error: null };
+
+    // Each lookup this action makes is a fresh .from(table) call; return a
+    // stub resolving to that table's own configured result.
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "classes") return createQueryStub(() => classResult);
+      if (table === "student_participants") return createQueryStub(() => participantResult);
+      if (table === "student_progression") return createQueryStub(() => progressionResult);
+      throw new Error(`unexpected table: ${table}`);
+    });
+  });
+
+  it("rejects a malformed input without calling the database", async () => {
+    const result = await getMyProgress({ classCode: "!!", participantCode: "ABC234" });
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("returns xp and level for a valid, active participant", async () => {
+    const result = await getMyProgress({ classCode: "ABC234", participantCode: "XYZ789" });
+
+    expect(result).toEqual({ success: true, xp: 250, level: 3 });
+  });
+
+  it("gives the same generic message for an unknown class code as for a wrong participant code", async () => {
+    classResult = { data: null, error: null };
+    const unknownClass = await getMyProgress({ classCode: "AAAAAA", participantCode: "XYZ789" });
+    expect(unknownClass).toEqual({ success: false, error: GENERIC });
+
+    classResult = { data: CLASS_ROW, error: null };
+    participantResult = { data: null, error: null };
+    const wrongParticipant = await getMyProgress({ classCode: "ABC234", participantCode: "ZZZZZZ" });
+    expect(wrongParticipant).toEqual({ success: false, error: GENERIC });
+  });
+
+  it("never reveals a removed participant's progress", async () => {
+    // The lookup itself filters on status = 'active', so a removed
+    // participant simply matches no row -- same as a wrong code.
+    participantResult = { data: null, error: null };
+
+    const result = await getMyProgress({ classCode: "ABC234", participantCode: "XYZ789" });
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+  });
+
+  it("stops calling the database once the rate limit is exhausted", async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await getMyProgress({ classCode: "ABC234", participantCode: "XYZ789" });
+    }
+    expect(mockFrom).toHaveBeenCalled();
+
+    const callsBeforeBlock = mockFrom.mock.calls.length;
+    const blocked = await getMyProgress({ classCode: "ABC234", participantCode: "XYZ789" });
+
+    expect(blocked).toEqual({ success: false, error: "잠시 후 다시 시도해 주세요." });
+    expect(mockFrom).toHaveBeenCalledTimes(callsBeforeBlock);
   });
 });

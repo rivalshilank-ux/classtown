@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { progressionForPlaySeconds } from "@classtown/shared-schema";
 import type { Database } from "@classtown/shared-types/database";
 import type { ClassPersistence, JoinIdentity } from "./types.js";
 
@@ -108,9 +109,17 @@ export function createSupabasePersistence(): ClassPersistence {
         return;
       }
 
+      // xp/level are derived fresh from the new cumulative total, never
+      // incremented separately -- see packages/shared-schema/src/progression.ts.
+      // Play time is the only XP source: this is the one method the room ever
+      // calls with a real, server-measured duration, never a client-supplied
+      // one (see ClassPersistence's own doc comment).
+      const totalPlaySeconds = data.play_seconds + seconds;
+      const { xp, level } = progressionForPlaySeconds(totalPlaySeconds);
+
       const { error } = await client
         .from("student_progression")
-        .update({ play_seconds: data.play_seconds + seconds })
+        .update({ play_seconds: totalPlaySeconds, xp, level })
         .eq("participant_id", participantId);
 
       if (error) {

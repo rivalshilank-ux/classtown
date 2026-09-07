@@ -11,8 +11,8 @@ import {
   PixelIcon,
   type PixelGlyphName,
 } from "@classtown/ui";
-import { formatEntryCode } from "@classtown/shared-schema";
-import { joinClass } from "@/lib/class/studentActions";
+import { formatEntryCode, XP_PER_LEVEL } from "@classtown/shared-schema";
+import { getMyProgress, joinClass } from "@/lib/class/studentActions";
 import {
   clearStudentSession,
   getStudentSession,
@@ -53,12 +53,36 @@ export function StudentHome() {
   const [session] = useState<StudentSession | null>(() => getStudentSession());
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ xp: number; level: number } | null>(null);
 
   useEffect(() => {
     if (!session) {
       router.replace("/student");
     }
   }, [session, router]);
+
+  // Read-only: this never sends xp/level anywhere, only fetches what the
+  // game server has already written from real play time (see
+  // packages/shared-schema/src/progression.ts). Failing silently here is
+  // deliberate -- a stale "레벨 정보 없음" badge is not worth an error banner
+  // on a page whose main job is the Play button.
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    let cancelled = false;
+    void getMyProgress({
+      classCode: session.classCode,
+      participantCode: session.participantCode,
+    }).then((result) => {
+      if (!cancelled && result.success) {
+        setProgress({ xp: result.xp, level: result.level });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   if (!session) {
     return (
@@ -127,20 +151,40 @@ export function StudentHome() {
                 <PixelIcon name="star" size={16} className="text-accent-600" />
                 레벨 &amp; 경험치
               </span>
-              <Badge tone="wood" className="whitespace-nowrap">
-                준비 중
+              <Badge tone="accent" className="whitespace-nowrap">
+                {progress ? `Lv.${progress.level}` : "불러오는 중"}
               </Badge>
             </div>
-            <div
-              role="progressbar"
-              aria-valuenow={0}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="경험치 (준비 중)"
-              className="pixel-corners-sm h-3 w-full overflow-hidden border-2 border-wood-900 bg-cream-400"
-            >
-              <div className="h-full w-0 bg-accent-500" />
-            </div>
+            {(() => {
+              const xpIntoLevel = progress ? progress.xp % XP_PER_LEVEL : 0;
+              const xpPercent = progress ? Math.round((xpIntoLevel / XP_PER_LEVEL) * 100) : 0;
+              return (
+                <>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={xpPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={
+                      progress
+                        ? `경험치 ${xpIntoLevel} / ${XP_PER_LEVEL}`
+                        : "경험치 불러오는 중"
+                    }
+                    className="pixel-corners-sm h-3 w-full overflow-hidden border-2 border-wood-900 bg-cream-400"
+                  >
+                    <div
+                      className="h-full bg-accent-500 transition-[width]"
+                      style={{ width: `${xpPercent}%` }}
+                    />
+                  </div>
+                  {progress && (
+                    <span className="text-right text-xs text-ink-600">
+                      {xpIntoLevel} / {XP_PER_LEVEL} XP
+                    </span>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {error && (

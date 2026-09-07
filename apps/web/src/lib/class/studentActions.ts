@@ -1,7 +1,12 @@
 "use server";
 
+import { z } from "zod";
 import { headers } from "next/headers";
-import { studentJoinInputSchema } from "@classtown/shared-schema";
+import {
+  classCodeSchema,
+  participantCodeSchema,
+  studentJoinInputSchema,
+} from "@classtown/shared-schema";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { consumeRateLimit } from "@/lib/class/rateLimit";
@@ -89,4 +94,69 @@ export async function joinClass(input: unknown): Promise<JoinClassResult> {
     participantCode: row.participant_code,
     classCode,
   };
+}
+
+export type ProgressResult =
+  | { success: true; xp: number; level: number }
+  | { success: false; error: string };
+
+const progressInputSchema = z.object({
+  classCode: classCodeSchema,
+  participantCode: participantCodeSchema,
+});
+
+/**
+ * A student's own class/participant code (already sitting in their
+ * sessionStorage from the join flow) is the lookup key -- the same shape
+ * join_class() itself accepts, and the same one-generic-failure posture:
+ * a wrong code, a removed participant, and a genuine database error are
+ * all indistinguishable from the outside. xp/level are read-only here;
+ * nothing this action does can write to student_progression.
+ */
+export async function getMyProgress(input: unknown): Promise<ProgressResult> {
+  const parsed = progressInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: GENERIC_JOIN_ERROR };
+  }
+
+  const ip = await clientKey();
+  if (!consumeRateLimit(`progress:ip:${ip}`, ATTEMPTS_PER_WINDOW, WINDOW_MS)) {
+    return { success: false, error: RATE_LIMITED_ERROR };
+  }
+
+  const supabase = createSupabaseServiceClient();
+
+  const { data: classRow } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("class_code", parsed.data.classCode)
+    .maybeSingle();
+
+  if (!classRow) {
+    return { success: false, error: GENERIC_JOIN_ERROR };
+  }
+
+  const { data: participantRow } = await supabase
+    .from("student_participants")
+    .select("id")
+    .eq("class_id", classRow.id)
+    .eq("participant_code", parsed.data.participantCode)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!participantRow) {
+    return { success: false, error: GENERIC_JOIN_ERROR };
+  }
+
+  const { data: progressionRow, error } = await supabase
+    .from("student_progression")
+    .select("xp, level")
+    .eq("participant_id", participantRow.id)
+    .maybeSingle();
+
+  if (error || !progressionRow) {
+    return { success: false, error: UNAVAILABLE_ERROR };
+  }
+
+  return { success: true, xp: progressionRow.xp, level: progressionRow.level };
 }

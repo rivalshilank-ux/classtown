@@ -5,3 +5,4 @@ export * from "./auth/teacher.schema.js";
 export * from "./auth/admin.schema.js";
 export * from "./class/entry.js";
 export * from "./world/campusMap.js";
+export * from "./progression.js";
