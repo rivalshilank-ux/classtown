@@ -38,8 +38,13 @@ KeyboardInput (browser events)
   updated for that message.
 - On join, a player's intent starts at `{ dx: 0, dy: 0 }` (stationary)
   until the client sends its first real intent.
-- On leave, both the player's `PlayerState` and its stored intent are
-  removed.
+- On a consented leave (or an unconsented drop's reconnection window
+  expiring with no reconnect), both the player's `PlayerState` and its
+  stored intent are removed. An unconsented drop instead freezes the
+  player: the stored intent is cleared immediately (so nothing keeps
+  sliding on stale input), but `PlayerState` itself is left untouched
+  until the window resolves one way or the other. See
+  [`../adr/0008-connection-recovery.md`](../adr/0008-connection-recovery.md).
 - Collision against the campus map (see [`map.md`](./map.md)) is
   server-authoritative: `TownRoom.canOccupy()` checks the four corners of
   the player's collision box (`PLAYER_RADIUS - 2`, slightly smaller than
@@ -64,12 +69,14 @@ See [`../security/security.md`](../security/security.md).
 `apps/game-server/src/rooms/TownRoom.test.ts` covers: normal movement,
 invalid input (out-of-range and malformed messages are dropped),
 authoritative position (client-claimed position is never trusted),
-stopping at a solid wall, and multi-client synchronization.
-`packages/game-client/src/moveSender.test.ts` covers client-side intent
-validation.
+stopping at a solid wall, multi-client synchronization, and — a player's
+position never drifts on stale input during an unconsented drop's
+reconnection window. `packages/game-client/src/moveSender.test.ts`
+covers client-side intent validation.
 
 ## Related Documents
 
 - [`../architecture/overview.md`](../architecture/overview.md)
+- [`../adr/0008-connection-recovery.md`](../adr/0008-connection-recovery.md)
 - [`map.md`](./map.md)
 - [`game-design.md`](./game-design.md)

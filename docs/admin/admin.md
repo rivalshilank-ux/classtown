@@ -143,6 +143,7 @@ full design rationale.
 | Teacher mutations (create/archive class, rotate code, toggle join) | Blocked -- `MAINTENANCE_MODE` |
 | New Colyseus joins (`TownRoom.onAuth`) | Blocked -- `ServerError(503, MAINTENANCE_MODE_ERROR_CODE)` |
 | Existing connected players | Preserved -- `onAuth` never runs again for a session already in the room |
+| Reconnection after a dropped connection (`allowReconnection`, [ADR 0008](../adr/0008-connection-recovery.md)) | Allowed -- treated as a continuation of an existing session, not a new join; `onAuth`/the maintenance check never runs on this path |
 | Admin (`/admin/*`) | Allowed -- these routes never call any gated function |
 | Health checks (`/api/health`, game server `/health`) | Allowed |
 

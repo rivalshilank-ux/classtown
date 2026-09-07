@@ -36,13 +36,22 @@ Every document states a **Status** at the top:
 
 As of this writing, ClassTown consists of:
 
-- **`apps/web`** — Next.js 16 app. Implements teacher signup/login/logout
-  via Supabase Auth, a protected `/teacher` page, and a `/play` page that
-  embeds the Phaser game client. See [`teacher/teacher.md`](./teacher/teacher.md)
-  and [`security/security.md`](./security/security.md).
-- **`apps/game-server`** — Colyseus server. Implements a single room type,
-  `TownRoom`, with server-authoritative player movement. See
-  [`game/movement.md`](./game/movement.md).
+- **`apps/web`** — Next.js 16 app. Teacher signup/login/logout, a
+  dashboard with real class management (create/rename/archive/regenerate
+  code) and student roster/removal, a student entry flow (ticket-based
+  join, no account), and a full Admin Operations Center (`/admin/*`) —
+  separate identity, teacher/class/student oversight, audit log,
+  announcements, maintenance mode, AI Ops, and an automated (opt-in)
+  weekly update/deployment pipeline. A `/play` page embeds the Phaser
+  game client. See [`teacher/teacher.md`](./teacher/teacher.md),
+  [`admin/admin.md`](./admin/admin.md), and
+  [`security/security.md`](./security/security.md).
+- **`apps/game-server`** — Colyseus server. A single room type,
+  `TownRoom`, with server-authoritative movement and campus-map
+  collision, ticket-verified join identity, presence/activity persisted
+  to Supabase, and reconnection handling for dropped connections. See
+  [`game/movement.md`](./game/movement.md) and
+  [`adr/0008-connection-recovery.md`](./adr/0008-connection-recovery.md).
 - **`packages/game-client`** — Phaser 4 client wrapper used by `/play`.
 - **`packages/shared-schema`** — Zod schemas (validation) and
   `@colyseus/schema` state classes (network sync), shared between
@@ -50,11 +59,23 @@ As of this writing, ClassTown consists of:
 - **`packages/shared-types`**, **`packages/ui`**, **`packages/i18n`**,
   **`packages/config`** — supporting packages (TypeScript types, design
   system components, translated strings, shared lint/tsconfig).
+- **CI/Deployment** — GitHub Actions runs typecheck/lint/test/build on
+  every push; Vercel auto-deploys `apps/web` on push to `master`. See
+  [`operations/operations.md`](./operations/operations.md).
 
-Everything else described anywhere under `game/`, `admin/`,
-`cheat-tool/`, and `messenger/` is **Planned** unless its document says
-otherwise.
+Everything under `game/` beyond movement (NPCs, quests, inventory, house,
+seasons, events, tutorial, game modes), `cheat-tool/`, and `messenger/` is
+still **Planned** — none of that has changed. `admin/` and `teacher/` are
+each substantially **Implemented** now; read those two documents directly
+rather than assuming "Planned" from this summary alone.
 
 ## Related Documents
 
 - [`adr/0001-teacher-authentication.md`](./adr/0001-teacher-authentication.md)
+- [`adr/0002-class-and-student-participants.md`](./adr/0002-class-and-student-participants.md)
+- [`adr/0003-admin-authentication.md`](./adr/0003-admin-authentication.md)
+- [`adr/0004-maintenance-gate.md`](./adr/0004-maintenance-gate.md)
+- [`adr/0005-ai-ops-tool-registry.md`](./adr/0005-ai-ops-tool-registry.md)
+- [`adr/0006-hidden-admin-entry.md`](./adr/0006-hidden-admin-entry.md)
+- [`adr/0007-scheduler-and-deployment-pipeline.md`](./adr/0007-scheduler-and-deployment-pipeline.md)
+- [`adr/0008-connection-recovery.md`](./adr/0008-connection-recovery.md)

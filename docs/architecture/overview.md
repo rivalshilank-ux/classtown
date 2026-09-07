@@ -41,29 +41,52 @@ raw TypeScript passed through `node_modules`.
 ```
 Browser (apps/web, Next.js)
    ├── Server Components / Server Actions ──HTTPS──> Supabase (Postgres + Auth)
-   │        (teacher signup/login/logout, profile read, RLS-scoped queries)
+   │        (teacher auth, admin auth, class/roster management,
+   │         student join, RLS-scoped queries)
+   │
+   ├── /admin/* (separate admin_accounts identity, see ADR 0003) ──HTTPS──> Supabase
+   │
+   ├── GET /api/cron/weekly-check, /weekly-update (Vercel Cron, CRON_SECRET-gated)
+   │        ──HTTPS──> Supabase (service role) + GitHub Actions API + Vercel API
+   │        (see ADR 0007 — the update-plan/deployment pipeline)
    │
    └── /play page embeds packages/game-client (Phaser)
               │
               └──WebSocket──> apps/game-server (Colyseus)
                                    │
-                                   └── TownRoom: single authoritative
-                                       in-memory state (TownRoomState),
-                                       broadcast to all connected clients
+                                   ├── TownRoom: single authoritative
+                                   │   in-memory state (TownRoomState),
+                                   │   broadcast to all connected clients
+                                   │
+                                   └──HTTPS (service role)──> Supabase
+                                       (consume_join_ticket, presence,
+                                       activity, maintenance check)
 ```
 
 Two independent backends exist and are never conflated:
 
-- **Supabase** owns teacher identity, profile data, and authorization for
-  anything reached through `apps/web`'s server-side code (Server
-  Components, Server Actions, `proxy.ts`).
+- **Supabase** owns every identity in the system (teacher, admin, and the
+  non-authenticating student `student_participants` character sheet),
+  profile/roster data, and authorization for anything reached through
+  `apps/web`'s server-side code (Server Components, Server Actions,
+  `proxy.ts`).
 - **The Colyseus game server** owns all in-room gameplay state
-  (`TownRoomState`, `PlayerState`). It has no knowledge of Supabase, auth
-  tokens, or teacher accounts today — a client currently joins with only a
-  `joinCode` and `nickname` (see
+  (`TownRoomState`, `PlayerState`). It does hold a Supabase client (the
+  service role, injected as `ClassPersistence` — see
+  [`../adr/0002-class-and-student-participants.md`](../adr/0002-class-and-student-participants.md)),
+  but only to verify a join ticket, write presence/activity, and check
+  maintenance mode. It never holds a browser's session and never accepts
+  identity from anything the client sends: a join carries a single-use
+  ticket and nothing else (see
   [`../game/movement.md`](../game/movement.md) and
-  [`../security/security.md`](../security/security.md) for what that does
-  and does not authorize).
+  [`../security/security.md`](../security/security.md)).
+
+The two backends are bridged exactly once, by design: `apps/web`'s
+`joinClass()` (service role) validates a class code + participant/nickname
+against Supabase and mints a `join_tickets` row; the browser holds only
+that ticket id; `apps/game-server`'s `TownRoom.onAuth` exchanges it via
+`consume_join_ticket()` and takes identity from the returned row, never
+from the client. No other path connects the two systems.
 
 ### Server-authoritative game state
 
@@ -88,10 +111,18 @@ The server:
 3. On each simulation tick, advances every player's authoritative
    `x`/`y` by `MOVE_SPEED * deltaSeconds`, using the last received
    intent, clamped to a unit vector.
-4. This is the entire authority boundary today: there is no collision,
-   map bounds, or anti-cheat validation beyond intent-shape checking. See
-   [`../game/movement.md`](../game/movement.md) for exactly what is and
-   is not implemented.
+4. Collision against the campus map (`canOccupy()` / `isSolidAtPixel()`)
+   is checked server-side before committing each axis of a move — a
+   client cannot walk through a wall by lying about its own position,
+   because the server never reads one. There is still no anti-cheat
+   validation beyond intent-shape checking and wall collision (e.g. no
+   speed-hack detection). See [`../game/movement.md`](../game/movement.md)
+   for exactly what is and is not implemented.
+5. A dropped connection does not immediately erase a player: an
+   unconsented disconnect gets a short server-side reconnection window
+   (`allowReconnection()`), during which the player is frozen in place
+   rather than removed. See
+   [`../adr/0008-connection-recovery.md`](../adr/0008-connection-recovery.md).
 
 ### Auth flow (teacher)
 
@@ -133,6 +164,13 @@ correctness doesn't depend on the proxy matcher alone. See
 [`../security/security.md`](../security/security.md) and
 [`../adr/0001-teacher-authentication.md`](../adr/0001-teacher-authentication.md).
 
+Admin identity follows the same doubled-guard shape as a fully separate
+`admin_accounts` table (never an elevated teacher) — see
+[`../adr/0003-admin-authentication.md`](../adr/0003-admin-authentication.md).
+Student join has no auth flow at all in the Supabase Auth sense — see the
+ticket bridge described above and
+[`../adr/0002-class-and-student-participants.md`](../adr/0002-class-and-student-participants.md).
+
 ### Package dependency graph
 
 ```
@@ -153,46 +191,72 @@ a mock, not at runtime.
 
 ## Current Implementation
 
-- `apps/web`: teacher signup, login, logout, protected `/teacher` page,
-  `/play` page embedding the game client. Next.js 16 App Router, Tailwind
-  v4, deployed to Vercel (Root Directory `apps/web`).
-- `apps/game-server`: single Colyseus room (`TownRoom`) with
-  server-authoritative movement, an Express `/health` endpoint, no
-  persistence — all state is in-memory and lost on restart.
-- `packages/*`: as listed above, all implemented to the extent their
+This list is intentionally at the level of "what exists," not "how it
+works" — each area has its own doc with the real detail, linked below.
+
+- **Teacher**: signup/login/logout, a dashboard with real class
+  management (create, rename, archive, regenerate join code) and a real
+  student roster (nickname, participant code, status, last seen, level,
+  XP, recent activity) — see [`../teacher/teacher.md`](../teacher/teacher.md).
+- **Student**: no account. Entry by class code (+ nickname or participant
+  code) → server-validated join → single-use ticket → verified Colyseus
+  identity. Session recovery and reconnection are handled without ever
+  trusting client-supplied identity — see
+  [`../adr/0002-class-and-student-participants.md`](../adr/0002-class-and-student-participants.md)
+  and [`../adr/0008-connection-recovery.md`](../adr/0008-connection-recovery.md).
+- **Admin**: a fully separate identity and Operations Center
+  (`/admin/*`) — teacher/class/student oversight, audit log,
+  announcements, maintenance mode with a real enforcement gate, AI Ops
+  (Groq-backed, optional), and an automated weekly update/deployment
+  pipeline. See [`../admin/admin.md`](../admin/admin.md) and
+  ADRs 0003–0008.
+- **Game**: one shared Colyseus room (`TownRoom`) — not per-class rooms,
+  a deliberate design choice — with server-authoritative movement,
+  campus-map collision, presence/activity persisted to Supabase, and
+  reconnection handling for dropped connections.
+- **Deployment**: Vercel (Git-connected, auto-deploys on push to
+  `master`), GitHub Actions CI running typecheck/lint/test/build on every
+  push — see [`../operations/operations.md`](../operations/operations.md).
+- `packages/*`: as listed above, implemented to the extent their
   consumers use them.
 
 ## Planned
 
-- Any second room type, persistence for game state, student accounts,
-  join-code-to-real-room mapping, and everything under
-  [`../game/`](../game/) beyond movement.
-- A connection between `apps/web`'s Supabase session and
-  `apps/game-server`'s room join (today they are entirely independent —
-  see [`../security/security.md`](../security/security.md) for the
-  concrete implication).
+- A second Colyseus room type, and everything under
+  [`../game/`](../game/) beyond movement (NPCs, quests, inventory, etc.)
+  — all explicitly out of scope until a dedicated phase takes them on.
+- Cheat-tool authorization (see
+  [`../cheat-tool/cheat-tool.md`](../cheat-tool/cheat-tool.md)).
+- A messenger/chat feature (see
+  [`../messenger/messenger.md`](../messenger/messenger.md)).
 
 ## Security
 
 See [`../security/security.md`](../security/security.md) for the full
 treatment. Summary: Supabase Auth + RLS govern everything reached through
-`apps/web`; the Colyseus room governs gameplay state and re-validates all
-client input server-side; no service-role or other secret key is used by
-`apps/web`'s runtime code.
+`apps/web`'s teacher/admin surfaces; students never hold a Supabase
+session, so every student-facing read/write goes through trusted server
+code under the service role; the Colyseus room governs gameplay state,
+re-validates all client input server-side, and never accepts identity
+from the client.
 
 ## Testing
 
-- `apps/game-server`: `TownRoom.test.ts` (Vitest) — join, invalid input,
-  authoritative position, multi-client sync.
-- `packages/game-client`: `connection.test.ts`,
-  `KeyboardInput.test.ts`, `input.test.ts`, `moveSender.test.ts`.
-- `apps/web`: `getCurrentTeacher.test.ts`, `teacherActions.test.ts`,
-  `formErrors.test.ts`, `proxy.test.ts`, `middleware.test.ts`.
-- Run everything from the repo root: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+Real, not mocked, wherever the thing being tested is real infrastructure:
+`apps/game-server`'s room tests run against an actual Colyseus server
+instance (join/auth, movement/collision, maintenance gate, reconnection);
+security-critical Supabase behavior (RLS, IDOR, grants) has been verified
+against a real local Postgres instance during several phases, not only
+through application code's own query shape. Run
+`pnpm typecheck && pnpm lint && pnpm test && pnpm build` from the repo
+root for the current, authoritative pass/fail state — the exact file list
+changes too often to keep listed here without drifting.
 
 ## Related Documents
 
 - [`../game/movement.md`](../game/movement.md)
 - [`../teacher/teacher.md`](../teacher/teacher.md)
+- [`../admin/admin.md`](../admin/admin.md)
 - [`../security/security.md`](../security/security.md)
-- [`../adr/0001-teacher-authentication.md`](../adr/0001-teacher-authentication.md)
+- [`../operations/operations.md`](../operations/operations.md)
+- [`../README.md`](../README.md) — full ADR index

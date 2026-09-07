@@ -2,11 +2,11 @@
 
 ## Status
 
-In Progress — deployment is Implemented (manual/git-triggered); manually
-admin-triggered maintenance mode and announcements are Implemented (see
-[`../admin/admin.md`](../admin/admin.md)); scheduled/automated maintenance,
-automated backups, dependency scanning, regression automation, and ops
-reporting are Planned.
+In Progress — deployment is Implemented (Vercel, git-triggered), CI is
+Implemented (GitHub Actions, runs on every push to `master`), an
+automated weekly update-plan/deployment pipeline is Implemented but
+disabled by default (see [`../admin/admin.md`](../admin/admin.md));
+automated backups, dependency scanning, and ops reporting are Planned.
 
 ## Purpose
 
@@ -17,14 +17,25 @@ yet — none of it should be assumed to be running.
 ## Architecture
 
 ```
-git push (GitHub, rivalshilank-ux/classtown)
+git push (GitHub, rivalshilank-ux/classtown, branch: master)
         │
-        ▼
-Vercel (Git-connected project, Root Directory: apps/web)
-        │  installCommand: cd ../.. && pnpm install --frozen-lockfile
-        │  buildCommand:   cd ../.. && pnpm turbo run build --filter=@classtown/web
-        ▼
-Preview deployment (non-production branch) or Production deployment
+        ├──> GitHub Actions CI (.github/workflows/ci.yml)
+        │        pnpm typecheck && lint && test && build
+        │
+        └──> Vercel (Git-connected project, Root Directory: apps/web)
+                 │  installCommand: cd ../.. && pnpm install --frozen-lockfile
+                 │  buildCommand:   cd ../.. && pnpm turbo run build --filter=@classtown/web
+                 ▼
+             Preview deployment (non-production branch) or Production deployment
+
+Separately, Vercel Cron (apps/web/vercel.json) hits two CRON_SECRET-gated
+routes on a schedule:
+  Sun 19:00 KST → /api/cron/weekly-check  → proposes an update plan
+  Sat 03:00 KST → /api/cron/weekly-update → runs the deploy pipeline,
+                                             but only if an admin has
+                                             both approved a plan AND
+                                             turned ops_config.auto_update_enabled
+                                             on (default: off)
 ```
 
 `apps/web/vercel.json` runs install/build from the monorepo root so
@@ -38,55 +49,66 @@ locally (`pnpm start` / `pnpm dev`) during development and verification.
 
 ## Current Implementation
 
+- **CI**: GitHub Actions (`.github/workflows/ci.yml`) runs
+  `pnpm typecheck && lint && test && build` on every push to `master` and
+  on every pull request. (This did not actually run for a real period of
+  time — the workflow was originally scoped to `branches: [main]`, but
+  this repository's default branch is `master`; fixed in Phase 8.)
 - **Deployment**: Vercel project connected to the GitHub repository.
-  Pushing to the connected branch triggers a build; Production and
-  Preview environments exist as separate Vercel deployment targets.
-  Environment variables configured are limited to
-  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` — no
-  service-role key or other secret is registered in Vercel.
-- **Health check**: `apps/game-server` exposes `GET /health` → `{"status": "ok"}`,
-  checked manually during development, not monitored in production
-  (nothing is deployed to check).
-- **Verification before deploy**: `pnpm typecheck`, `pnpm lint`,
-  `pnpm test`, `pnpm build` are run manually from the repo root before
-  each deployment step; there is no CI pipeline running these
-  automatically on push today.
+  Pushing to `master` triggers a build; Production and Preview
+  environments exist as separate Vercel deployment targets. Configured
+  environment variables were confirmed (by listing names, never printing
+  values) to be limited to `NEXT_PUBLIC_SUPABASE_URL` and
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` — no service-role key or other secret
+  is registered in Vercel.
+- **Automated weekly update pipeline** (see
+  [`../adr/0007-scheduler-and-deployment-pipeline.md`](../adr/0007-scheduler-and-deployment-pipeline.md)):
+  a Sunday cron proposes an update plan from recent commits; an admin
+  reviews and approves it from `/admin/updates`; a Saturday cron walks
+  precheck → maintenance → deploy → verify → completed/failed, rolling
+  back only if explicitly enabled. **Disabled by default** —
+  `ops_config.auto_update_enabled` defaults to `false`, so deploying this
+  feature changed nothing in production until an admin opts in. Neither
+  cron route has been exercised against real GitHub/Vercel credentials in
+  this repository's development environment; both fail closed (fail an
+  auth check or report "not configured") without them.
+- **Health check**: `apps/game-server` exposes `GET /health`;
+  `apps/web` exposes `GET /api/health`. Neither is monitored
+  continuously in production today — `/admin/system` runs an on-demand
+  check when an admin loads the page.
 - **Maintenance mode**: an admin can start/end a maintenance window from
-  `/admin/system` (`public.maintenance_windows`, server-authoritative --
-  see [`../admin/admin.md`](../admin/admin.md)). A currently active window
-  is surfaced on the landing, teacher, and student entry pages, and — as of
-  Phase 3.5 — actually blocks new student joins, teacher mutations, and new
-  Colyseus joins server-side (never disconnecting a player already
-  connected). Nothing starts or ends a window automatically; it is always
-  an explicit admin action.
+  `/admin/system` (`public.maintenance_windows`, server-authoritative).
+  A currently active window is surfaced on the landing, teacher, and
+  student entry pages, and blocks new student joins, teacher mutations,
+  and new Colyseus joins server-side (never disconnecting a player
+  already connected). The weekly update pipeline can start/end a window
+  automatically as part of a deploy, but nothing runs on a plain
+  calendar schedule outside of that pipeline.
 - **Announcements**: an admin can draft and publish a site-wide
-  announcement from `/admin/announcements` (`public.system_announcements`).
-  A "scheduled" announcement does not publish itself at its scheduled time
-  -- publishing is always a manual admin action until a scheduler exists.
-- **Database health check**: `/admin/system` runs a real, on-demand
-  Supabase reachability probe -- not scheduled or monitored outside of an
-  admin loading that page.
+  announcement from `/admin/announcements`. A "scheduled" announcement
+  does not publish itself at its scheduled time — publishing is always a
+  manual admin action; the update pipeline can auto-publish a *completion*
+  announcement after a successful deploy if `ops_config.auto_announcement_enabled`
+  is on, which is a different thing.
+- **Audit log**: `/admin/audit` — append-only, covers admin login/logout,
+  announcement/maintenance/update-plan mutations, and AI Ops actions. See
+  [`../admin/admin.md`](../admin/admin.md).
 
 ## Planned
 
 None of the following is automated or scheduled today:
 
-- Regular update cadence.
-- Automatically publishing a scheduled announcement, or automatically
-  starting/ending a maintenance window on a schedule (e.g. a weekly
-  Sunday-dawn maintenance window) -- both exist today only as manual admin
-  actions (see Current Implementation above).
 - Emergency security patch process.
-- Continuous/scheduled database health monitoring (today's check is
-  on-demand only, run when an admin loads `/admin/system`).
+- Continuous/scheduled database or deployment health monitoring beyond
+  what the update pipeline itself checks mid-deploy.
 - Log management and retention policy.
 - Backup and restore process (Supabase's own backup capabilities have
   not been configured or verified for this project).
 - Dependency/security update checks (no `pnpm audit` or equivalent runs
   automatically).
-- Automated regression testing on a schedule or on every push (CI).
-- Automated deployment health checks post-deploy.
 - Discord webhook–based operations reporting.
+- A distributed rate limiter (today's is per-process in-memory — see
+  [`../security/security.md`](../security/security.md)).
 
 ## Security
 
@@ -96,12 +118,13 @@ stored in Vercel's environment variable configuration.
 
 ## Testing
 
-`pnpm typecheck && pnpm lint && pnpm test && pnpm build`, run manually
-from the repo root, is the current pre-deploy gate. There is no automated
-CI enforcing this on every push.
+`pnpm typecheck && pnpm lint && pnpm test && pnpm build` from the repo
+root is both the pre-deploy gate and, as of Phase 8, what GitHub Actions
+CI runs automatically on every push to `master` and every pull request.
 
 ## Related Documents
 
 - [`../architecture/overview.md`](../architecture/overview.md)
 - [`../security/security.md`](../security/security.md)
 - [`../admin/admin.md`](../admin/admin.md)
+- [`../adr/0007-scheduler-and-deployment-pipeline.md`](../adr/0007-scheduler-and-deployment-pipeline.md)
