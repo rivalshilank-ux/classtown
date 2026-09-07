@@ -22,6 +22,14 @@ const HEARTBEAT_INTERVAL_MS = 60_000;
  */
 const MIN_LOGGED_SESSION_MS = 5_000;
 
+/**
+ * How long an unconsented drop (WiFi blip, laptop lid closing) holds the
+ * seat open before treating it as a real departure. Long enough for a
+ * genuinely transient network hiccup on school WiFi, short enough that a
+ * closed laptop does not read as "online" for the rest of the period.
+ */
+const RECONNECTION_GRACE_SECONDS = 20;
+
 // Slightly smaller than the visual radius so movement doesn't visibly
 // stop short of a wall's edge.
 const COLLISION_RADIUS = PLAYER_RADIUS - 2;
@@ -37,6 +45,8 @@ function canOccupy(x: number, y: number): boolean {
 
 export interface TownRoomOptions {
   persistence: ClassPersistence;
+  /** Overridable only for tests -- production always uses the real default. */
+  reconnectionGraceSeconds?: number;
 }
 
 interface SessionRecord {
@@ -57,9 +67,12 @@ export class TownRoom extends Room<TownRoomState> {
   private sessions = new Map<string, SessionRecord>();
 
   private persistence!: ClassPersistence;
+  private reconnectionGraceSeconds = RECONNECTION_GRACE_SECONDS;
 
   onCreate(options: TownRoomOptions) {
     this.persistence = options.persistence;
+    this.reconnectionGraceSeconds =
+      options.reconnectionGraceSeconds ?? RECONNECTION_GRACE_SECONDS;
 
     this.setState(new TownRoomState());
     this.setSimulationInterval(
@@ -136,15 +149,43 @@ export class TownRoom extends Room<TownRoomState> {
     });
   }
 
-  onLeave(client: Client) {
-    this.state.players.delete(client.sessionId);
+  /**
+   * `consented` is true for a deliberate leave (the client SDK called
+   * `.leave()` -- including the multi-device kick above, which does exactly
+   * that) and false for a dropped connection: a WiFi blip, a laptop lid
+   * closing, a tab crashing. Only the latter gets a reconnection window --
+   * a deliberate leave still cleans up immediately, exactly as before this
+   * existed.
+   *
+   * The move intent is always cleared up front regardless of outcome: the
+   * per-tick simulation loop keys off this map alone, so a frozen player
+   * with a stale non-zero intent would otherwise keep sliding across the
+   * map with nobody driving.
+   */
+  async onLeave(client: Client, consented: boolean) {
     this.moveIntents.delete(client.sessionId);
 
     const record = this.sessions.get(client.sessionId);
-    this.sessions.delete(client.sessionId);
     if (!record) {
       return;
     }
+
+    if (!consented) {
+      try {
+        await this.allowReconnection(client, this.reconnectionGraceSeconds);
+        // Reconnected within the window: same session, same participant,
+        // same position -- no new ticket, no join/left event pair, no
+        // persistence write. Only the movement intent needed resetting.
+        this.moveIntents.set(client.sessionId, { dx: 0, dy: 0 });
+        return;
+      } catch {
+        // Grace period expired with no reconnection -- fall through to the
+        // same cleanup a deliberate leave gets.
+      }
+    }
+
+    this.state.players.delete(client.sessionId);
+    this.sessions.delete(client.sessionId);
 
     const elapsedMs = Date.now() - record.joinedAt;
     const { participantId, classId } = record.identity;

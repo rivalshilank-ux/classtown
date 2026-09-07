@@ -7,6 +7,7 @@ export type ConnectionStatus =
   | "connected"
   | "joining"
   | "joined"
+  | "reconnecting"
   | "error"
   | "disconnected";
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createGameClient, type ConnectionStatus } from "@classtown/game-client";
 import { Logo, PixelIcon } from "@classtown/ui";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
-import { clearStudentSession, clearStudentTicket, getStudentSession } from "@/lib/student/session";
+import { clearStudentTicket, getStudentSession } from "@/lib/student/session";
 
 const MAINTENANCE_MESSAGE = "현재 ClassTown은 점검 중입니다. 잠시 후 다시 이용해 주세요.";
 
@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
   connected: "서버에 연결됨...",
   joining: "룸에 입장하는 중...",
   joined: "",
+  reconnecting: "연결이 잠시 끊어졌어요. 다시 연결하는 중...",
   error: "연결에 실패했습니다.",
   disconnected: "연결이 끊어졌습니다.",
 };
@@ -78,8 +79,12 @@ export function GameCanvas() {
   const showOverlay = status !== "joined";
   const isRecoverable = status === "error" || status === "disconnected";
 
+  // Leaving on purpose and losing the connection both land here, never at
+  // "/student" directly. The stored participant code is what lets a return
+  // visit rejoin as the same character instead of minting a new one -- see
+  // ADR 0002 -- so nothing on this path should discard the session. Starting
+  // over with a different code is a choice /student/home itself offers.
   function handleLeave() {
-    clearStudentSession();
     router.push("/student/home");
   }
 
@@ -114,7 +119,7 @@ export function GameCanvas() {
             {isRecoverable && (
               <button
                 type="button"
-                onClick={() => router.replace("/student")}
+                onClick={() => router.replace("/student/home")}
                 className="pixel-corners border-2 border-ink-900 bg-accent-500 px-4 py-2 font-[family-name:var(--font-display)] text-sm text-ink-900 shadow-[0_3px_0_0_#3a2415] transition-[transform,box-shadow] hover:bg-accent-600 active:translate-y-[2px] active:shadow-[0_1px_0_0_#3a2415] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
               >
                 다시 입장하기

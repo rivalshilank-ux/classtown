@@ -7,9 +7,14 @@ import type { ClassPersistence } from "./persistence/types.js";
 
 export interface GameServerOptions {
   persistence: ClassPersistence;
+  /** Overridable only for tests -- production always uses TownRoom's real default. */
+  reconnectionGraceSeconds?: number;
 }
 
-export function createGameServer({ persistence }: GameServerOptions) {
+export function createGameServer({
+  persistence,
+  reconnectionGraceSeconds,
+}: GameServerOptions) {
   const app = express();
 
   app.get("/health", (_req, res) => {
@@ -25,7 +30,7 @@ export function createGameServer({ persistence }: GameServerOptions) {
   // Persistence is injected rather than imported so the room has no hard
   // dependency on a live database, and tests can drive the join flow with a
   // fake instead of a real Supabase project.
-  gameServer.define("town", TownRoom, { persistence });
+  gameServer.define("town", TownRoom, { persistence, reconnectionGraceSeconds });
 
   return { app, httpServer, gameServer };
 }

@@ -355,4 +355,137 @@ describe("TownRoom", () => {
       await roomB.leave();
     });
   });
+
+  describe("dropped connection recovery", () => {
+    // A short grace period so these tests don't take 20 real seconds each --
+    // see TownRoomOptions.reconnectionGraceSeconds.
+    let shortServer: ReturnType<typeof createGameServer>;
+    let shortPersistence: FakePersistence;
+    let shortEndpoint: string;
+    let shortParticipantSeq = 0;
+
+    function shortTicketFor(nickname: string) {
+      shortParticipantSeq += 1;
+      return shortPersistence.issueTicket({
+        participantId: `33333333-3333-4333-8333-${String(shortParticipantSeq).padStart(12, "0")}`,
+        classId: CLASS_ID,
+        nickname,
+      });
+    }
+
+    beforeEach(async () => {
+      shortPersistence = createFakePersistence();
+      shortServer = createGameServer({
+        persistence: shortPersistence,
+        reconnectionGraceSeconds: 0.3,
+      });
+      await shortServer.gameServer.listen(0);
+      const { port } = shortServer.httpServer.address() as AddressInfo;
+      shortEndpoint = `ws://localhost:${port}`;
+    });
+
+    afterEach(async () => {
+      await shortServer.gameServer.gracefullyShutdown(false);
+    });
+
+    it("keeps the player in the room during an unconsented drop, and resumes the same session on reconnect", async () => {
+      const client = new Client(shortEndpoint);
+      const room = await client.joinOrCreate<TownRoomState>("town", {
+        ticket: shortTicketFor("Alex"),
+      });
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      // Simulate a dropped connection, not a deliberate leave. The client
+      // resolving this promise only means its own socket closed -- the
+      // server's onLeave (and the allowReconnection() call inside it) runs
+      // independently, so a moment is needed before a reconnect attempt can
+      // find the window it opens.
+      await room.leave(false);
+      await sleep(100);
+
+      // The reconnecting client is a fresh Client/Room pair from the SDK's
+      // point of view, but resolves to the same sessionId server-side.
+      const resumed = await new Client(shortEndpoint).reconnect<TownRoomState>(
+        room.reconnectionToken,
+      );
+
+      expect(resumed.sessionId).toBe(room.sessionId);
+      await waitFor(() => resumed.state.players?.get(resumed.sessionId) !== undefined);
+      expect(resumed.state.players.get(resumed.sessionId)?.nickname).toBe("Alex");
+
+      // No duplicate join, and no left event for the drop that was recovered from.
+      expect(shortPersistence.events.filter((e) => e.type === "joined")).toHaveLength(1);
+      expect(shortPersistence.events.filter((e) => e.type === "left")).toHaveLength(0);
+
+      await resumed.leave();
+    });
+
+    it("cleans up normally once the grace period expires with no reconnection", async () => {
+      const client = new Client(shortEndpoint);
+      const room = await client.joinOrCreate<TownRoomState>("town", {
+        ticket: shortTicketFor("Alex"),
+      });
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      await room.leave(false);
+
+      // Wait past the 0.3s grace period without ever attempting to reconnect.
+      // The session here is well under MIN_LOGGED_SESSION_MS, so a "left"
+      // activity event is correctly never recorded (see the persistence
+      // describe block above) -- markSeen() is the cleanup signal that
+      // isn't gated by that threshold: it fires once on join and, once
+      // more, only once real cleanup (not a lingering reconnection
+      // reservation) has actually run.
+      await waitFor(() => shortPersistence.seen.length >= 2);
+
+      // A stale reconnection token past its window is rejected, not resumed.
+      await expect(
+        new Client(shortEndpoint).reconnect<TownRoomState>(room.reconnectionToken),
+      ).rejects.toThrow();
+    });
+
+    it("does not open a reconnection window for a deliberate (consented) leave", async () => {
+      const client = new Client(shortEndpoint);
+      const room = await client.joinOrCreate<TownRoomState>("town", {
+        ticket: shortTicketFor("Alex"),
+      });
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      await room.leave(true);
+      await waitFor(() => shortPersistence.seen.length >= 2);
+
+      // Cleaned up immediately -- well within what would otherwise be the
+      // grace period -- and a reconnect attempt has nothing to resume.
+      await expect(
+        new Client(shortEndpoint).reconnect<TownRoomState>(room.reconnectionToken),
+      ).rejects.toThrow();
+    });
+
+    it("never lets the frozen player keep sliding on stale movement input during the grace window", async () => {
+      const client = new Client(shortEndpoint);
+      const room = await client.joinOrCreate<TownRoomState>("town", {
+        ticket: shortTicketFor("Alex"),
+      });
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+      room.send("move", { dx: 1, dy: 0 });
+      await waitFor(() => (room.state.players.get(room.sessionId)?.x ?? 0) > SPAWN_POINT.x);
+
+      await room.leave(false);
+      await sleep(100); // let onLeave clear the stale move intent
+
+      const resumed = await new Client(shortEndpoint).reconnect<TownRoomState>(
+        room.reconnectionToken,
+      );
+      await waitFor(() => resumed.state.players?.get(resumed.sessionId) !== undefined);
+
+      // Nothing was driving the player for the rest of the grace window --
+      // its position must be exactly as stable as any other idle player's,
+      // not still coasting on the last intent it received before dropping.
+      const positionAfterReconnect = resumed.state.players.get(resumed.sessionId)?.x;
+      await sleep(150);
+      expect(resumed.state.players.get(resumed.sessionId)?.x).toBe(positionAfterReconnect);
+
+      await resumed.leave();
+    });
+  });
 });

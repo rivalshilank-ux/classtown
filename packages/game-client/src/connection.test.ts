@@ -67,7 +67,10 @@ describe("game-client connection integration", () => {
       statuses.push(status);
     });
 
-    expect(statuses).toEqual(["connecting", "joining", "joined"]);
+    // connectToTownRoom reports up through "joining" only -- "joined" (and
+    // everything after a drop, including a reconnect attempt) is GameClient's
+    // responsibility once the Phaser scene is actually bound to the room.
+    expect(statuses).toEqual(["connecting", "joining"]);
 
     const $ = getStateCallbacks(room);
     let observedX: number | undefined;
@@ -85,8 +88,8 @@ describe("game-client connection integration", () => {
     expect(observedX).toBeGreaterThan(SPAWN_POINT.x);
 
     await room.leave();
-    await waitFor(() => statuses.includes("disconnected"));
-    expect(statuses).toEqual(["connecting", "joining", "joined", "disconnected"]);
+    // No further status change from connectToTownRoom itself -- see above.
+    expect(statuses).toEqual(["connecting", "joining"]);
   });
 
   it("refuses to send a malformed payload (e.g. an absolute position) to the server", async () => {
