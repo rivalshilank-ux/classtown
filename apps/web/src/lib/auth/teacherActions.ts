@@ -15,6 +15,8 @@ const RATE_LIMITED_ERROR = "로그인 시도가 너무 많습니다. 잠시 후 
 const TEMPORARY_LOGIN_ERROR = "일시적인 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const GENERIC_SIGNUP_ERROR = "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.";
 const EMAIL_TAKEN_ERROR = "이미 가입된 이메일입니다.";
+const WEAK_PASSWORD_ERROR = "비밀번호가 보안 기준을 충족하지 않습니다. 다른 비밀번호를 사용해 주세요.";
+const SIGNUP_RATE_LIMITED_ERROR = "가입 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
 const VALIDATION_ERROR = "입력값을 확인해 주세요.";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -22,12 +24,40 @@ const isDev = process.env.NODE_ENV !== "production";
 function devLog(step: string, detail?: Record<string, unknown>) {
   if (isDev) {
     // Dev-only: never pass password/access_token/refresh_token/service_role_key here.
-    console.debug(`[auth:teacherLogin] ${step}`, detail ?? "");
+    console.debug(`[auth:teacher] ${step}`, detail ?? "");
   }
 }
 
 function isAlreadyRegisteredError(message: string): boolean {
   return /already registered|already exists|user already/i.test(message);
+}
+
+// Same shape of fix as resolveLoginError below: the previous implementation
+// collapsed every signUp error other than "already registered" into one
+// generic message, which also hid a genuine "Database error saving new
+// user" (code unexpected_failure) -- the failure mode if the
+// handle_new_teacher() trigger on auth.users ever breaks -- behind the same
+// wording as a merely-weak password. Duck-typed on `code` for the same
+// cross-module-identity reason as resolveLoginError.
+function resolveSignupError(error: { code?: string; status?: number; name?: string; message: string }): string {
+  devLog("signup failure", { code: error.code, status: error.status, name: error.name });
+  switch (error.code) {
+    case "email_exists":
+    case "user_already_exists":
+      return EMAIL_TAKEN_ERROR;
+    case "weak_password":
+      return WEAK_PASSWORD_ERROR;
+    case "over_email_send_rate_limit":
+    case "over_request_rate_limit":
+      return SIGNUP_RATE_LIMITED_ERROR;
+    default:
+      // Covers signup_disabled, validation_failed, unexpected_failure (e.g. a
+      // broken handle_new_teacher trigger), and anything unrecognized. Never
+      // leak supabase's own wording to the client -- the dev log above still
+      // shows exactly which one it was. The message regex is kept only as a
+      // fallback for older/edge responses that carry no `code` at all.
+      return isAlreadyRegisteredError(error.message) ? EMAIL_TAKEN_ERROR : GENERIC_SIGNUP_ERROR;
+  }
 }
 
 // Maps a Supabase Auth error to a safe, user-facing message. The previous
@@ -69,6 +99,7 @@ export async function signUpTeacher(input: unknown): Promise<ActionResult> {
   }
 
   const { name, schoolName, email, password } = parsed.data;
+  devLog("signup started");
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.auth.signUp({
@@ -80,15 +111,11 @@ export async function signUpTeacher(input: unknown): Promise<ActionResult> {
   });
 
   if (error) {
-    return {
-      success: false,
-      error: isAlreadyRegisteredError(error.message)
-        ? EMAIL_TAKEN_ERROR
-        : GENERIC_SIGNUP_ERROR,
-    };
+    return { success: false, error: resolveSignupError(error) };
   }
 
-  return { success: true, requiresEmailConfirmation: data.session === null };
+  devLog("signup success", { userExists: Boolean(data?.user), sessionExists: Boolean(data?.session) });
+  return { success: true, requiresEmailConfirmation: data?.session === null };
 }
 
 export async function signInTeacher(input: unknown): Promise<ActionResult> {

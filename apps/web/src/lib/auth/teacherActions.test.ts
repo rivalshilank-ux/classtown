@@ -79,6 +79,51 @@ describe("signUpTeacher", () => {
       error: "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     });
   });
+
+  it("maps code: email_exists to the same safe 'already registered' message", async () => {
+    mockAuth.signUp.mockResolvedValue({
+      data: { session: null },
+      error: { message: "A user with this email address has already been registered", code: "email_exists", status: 422 },
+    });
+    const result = await signUpTeacher(VALID_SIGNUP);
+    expect(result).toEqual({ success: false, error: "이미 가입된 이메일입니다." });
+  });
+
+  it("reports a distinct message when supabase rejects the password as too weak", async () => {
+    mockAuth.signUp.mockResolvedValue({
+      data: { session: null },
+      error: { message: "Password should contain at least one special character", code: "weak_password", status: 422 },
+    });
+    const result = await signUpTeacher(VALID_SIGNUP);
+    expect(result).toEqual({
+      success: false,
+      error: "비밀번호가 보안 기준을 충족하지 않습니다. 다른 비밀번호를 사용해 주세요.",
+    });
+  });
+
+  it("reports a distinct message when supabase is rate-limiting signups", async () => {
+    mockAuth.signUp.mockResolvedValue({
+      data: { session: null },
+      error: { message: "Email rate limit exceeded", code: "over_email_send_rate_limit", status: 429 },
+    });
+    const result = await signUpTeacher(VALID_SIGNUP);
+    expect(result).toEqual({
+      success: false,
+      error: "가입 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
+
+  it("falls back to the generic message (not a leaked internal detail) for a database-side failure", async () => {
+    mockAuth.signUp.mockResolvedValue({
+      data: { session: null },
+      error: { message: "Database error saving new user", code: "unexpected_failure", status: 500 },
+    });
+    const result = await signUpTeacher(VALID_SIGNUP);
+    expect(result).toEqual({
+      success: false,
+      error: "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
 });
 
 describe("signInTeacher", () => {
