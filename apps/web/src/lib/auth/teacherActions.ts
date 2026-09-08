@@ -19,13 +19,14 @@ const WEAK_PASSWORD_ERROR = "비밀번호가 보안 기준을 충족하지 않�
 const SIGNUP_RATE_LIMITED_ERROR = "가입 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
 const VALIDATION_ERROR = "입력값을 확인해 주세요.";
 
-const isDev = process.env.NODE_ENV !== "production";
-
-function devLog(step: string, detail?: Record<string, unknown>) {
-  if (isDev) {
-    // Dev-only: never pass password/access_token/refresh_token/service_role_key here.
-    console.debug(`[auth:teacher] ${step}`, detail ?? "");
-  }
+// Server-side only: a Server Action's console output never reaches the
+// browser (it lands in the server/Vercel function log, private to whoever
+// can see deployment logs), so gating this on NODE_ENV as "dev-only" would
+// only suppress it in production -- exactly where a real Auth/DB
+// misconfiguration is happening and needs to be diagnosable. Never pass
+// password/access_token/refresh_token/service_role_key/cookie contents here.
+function authLog(step: string, detail?: Record<string, unknown>) {
+  console.log(`[auth:teacher] ${step}`, detail ?? "");
 }
 
 function isAlreadyRegisteredError(message: string): boolean {
@@ -40,7 +41,7 @@ function isAlreadyRegisteredError(message: string): boolean {
 // wording as a merely-weak password. Duck-typed on `code` for the same
 // cross-module-identity reason as resolveLoginError.
 function resolveSignupError(error: { code?: string; status?: number; name?: string; message: string }): string {
-  devLog("signup failure", { code: error.code, status: error.status, name: error.name });
+  authLog("signup failure", { code: error.code, status: error.status, name: error.name });
   switch (error.code) {
     case "email_exists":
     case "user_already_exists":
@@ -70,7 +71,7 @@ function resolveSignupError(error: { code?: string; status?: number; name?: stri
 // (that's `resolveLoginError`'s actual input in production), and duck-typing
 // avoids a brittle cross-module identity check while staying easy to test.
 function resolveLoginError(error: { code?: string; status?: number; name?: string }): string {
-  devLog("auth failure", { code: error.code, status: error.status, name: error.name });
+  authLog("auth failure", { code: error.code, status: error.status, name: error.name });
   switch (error.code) {
     case "email_not_confirmed":
       return EMAIL_NOT_CONFIRMED_ERROR;
@@ -99,7 +100,7 @@ export async function signUpTeacher(input: unknown): Promise<ActionResult> {
   }
 
   const { name, schoolName, email, password } = parsed.data;
-  devLog("signup started");
+  authLog("signup started");
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.auth.signUp({
@@ -114,7 +115,7 @@ export async function signUpTeacher(input: unknown): Promise<ActionResult> {
     return { success: false, error: resolveSignupError(error) };
   }
 
-  devLog("signup success", { userExists: Boolean(data?.user), sessionExists: Boolean(data?.session) });
+  authLog("signup success", { userExists: Boolean(data?.user), sessionExists: Boolean(data?.session) });
   return { success: true, requiresEmailConfirmation: data?.session === null };
 }
 
@@ -128,7 +129,7 @@ export async function signInTeacher(input: unknown): Promise<ActionResult> {
     };
   }
 
-  devLog("login started");
+  authLog("login started");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
@@ -136,7 +137,7 @@ export async function signInTeacher(input: unknown): Promise<ActionResult> {
     return { success: false, error: resolveLoginError(error) };
   }
 
-  devLog("auth success", { userExists: Boolean(data?.user), sessionExists: Boolean(data?.session) });
+  authLog("auth success", { userExists: Boolean(data?.user), sessionExists: Boolean(data?.session) });
   return { success: true, requiresEmailConfirmation: false };
 }
 

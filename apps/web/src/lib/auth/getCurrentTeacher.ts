@@ -18,12 +18,12 @@ function mapRow(row: TeacherAccountRow, emailVerified: boolean): TeacherAccount 
   };
 }
 
-const isDev = process.env.NODE_ENV !== "production";
-
-function devLog(step: string, detail?: Record<string, unknown>) {
-  if (isDev) {
-    console.debug(`[auth:getCurrentTeacher] ${step}`, detail ?? "");
-  }
+// Server-only file (see the "server-only" import above), so this never
+// reaches the browser -- no reason to gate it on NODE_ENV, which would only
+// suppress it in production, exactly where a real teacher_accounts lookup
+// failure needs to be diagnosable from the server/Vercel function log.
+function authLog(step: string, detail?: Record<string, unknown>) {
+  console.log(`[auth:getCurrentTeacher] ${step}`, detail ?? "");
 }
 
 export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
@@ -34,7 +34,7 @@ export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    devLog("no authenticated user");
+    authLog("no authenticated user");
     return null;
   }
 
@@ -45,10 +45,10 @@ export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
     .single();
 
   if (error || !profile) {
-    devLog("teacher account lookup failed", { code: error?.code });
+    authLog("teacher account lookup failed", { code: error?.code, message: error?.message });
     return null;
   }
 
-  devLog("teacher account found");
+  authLog("teacher account found");
   return mapRow(profile, user.email_confirmed_at != null);
 }
