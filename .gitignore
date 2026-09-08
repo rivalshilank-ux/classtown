@@ -16,3 +16,4 @@ supabase/.temp/
 
 .vercel
 .env*
+.secrets/
