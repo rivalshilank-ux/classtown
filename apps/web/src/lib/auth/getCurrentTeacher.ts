@@ -18,6 +18,14 @@ function mapRow(row: TeacherAccountRow, emailVerified: boolean): TeacherAccount 
   };
 }
 
+const isDev = process.env.NODE_ENV !== "production";
+
+function devLog(step: string, detail?: Record<string, unknown>) {
+  if (isDev) {
+    console.debug(`[auth:getCurrentTeacher] ${step}`, detail ?? "");
+  }
+}
+
 export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
   const supabase = await createSupabaseServerClient();
 
@@ -26,6 +34,7 @@ export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    devLog("no authenticated user");
     return null;
   }
 
@@ -36,8 +45,10 @@ export async function getCurrentTeacher(): Promise<TeacherAccount | null> {
     .single();
 
   if (error || !profile) {
+    devLog("teacher account lookup failed", { code: error?.code });
     return null;
   }
 
+  devLog("teacher account found");
   return mapRow(profile, user.email_confirmed_at != null);
 }

@@ -114,6 +114,62 @@ describe("signInTeacher", () => {
       error: "이메일 또는 비밀번호가 올바르지 않습니다.",
     });
   });
+
+  it("returns the same generic credentials message when supabase sets code: invalid_credentials", async () => {
+    mockAuth.signInWithPassword.mockResolvedValue({
+      error: { message: "Invalid login credentials", code: "invalid_credentials", status: 400 },
+    });
+    const result = await signInTeacher({
+      email: "teacher@example.com",
+      password: "wrong",
+    });
+    expect(result).toEqual({
+      success: false,
+      error: "이메일 또는 비밀번호가 올바르지 않습니다.",
+    });
+  });
+
+  it("does NOT report a credentials error when the real cause is an unconfirmed email", async () => {
+    mockAuth.signInWithPassword.mockResolvedValue({
+      error: { message: "Email not confirmed", code: "email_not_confirmed", status: 400 },
+    });
+    const result = await signInTeacher({
+      email: "teacher@example.com",
+      password: "correct-password",
+    });
+    expect(result).toEqual({
+      success: false,
+      error: "이메일 인증이 완료되지 않았습니다. 가입 시 받은 인증 메일의 링크를 확인해 주세요.",
+    });
+  });
+
+  it("does NOT report a credentials error when supabase is rate-limiting the request", async () => {
+    mockAuth.signInWithPassword.mockResolvedValue({
+      error: { message: "Request rate limit reached", code: "over_request_rate_limit", status: 429 },
+    });
+    const result = await signInTeacher({
+      email: "teacher@example.com",
+      password: "correct-password",
+    });
+    expect(result).toEqual({
+      success: false,
+      error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
+
+  it("does NOT report a credentials error for an unrecognized/config-shaped auth error", async () => {
+    mockAuth.signInWithPassword.mockResolvedValue({
+      error: { message: "Invalid API key", code: "invalid_api_key", status: 401 },
+    });
+    const result = await signInTeacher({
+      email: "teacher@example.com",
+      password: "correct-password",
+    });
+    expect(result).toEqual({
+      success: false,
+      error: "일시적인 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    });
+  });
 });
 
 describe("signOutTeacher", () => {
