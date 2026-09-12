@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import type { TownRoomState } from "@classtown/shared-schema";
+import type { ChatBroadcastEvent, ChatRejection, TownRoomState } from "@classtown/shared-schema";
+import { sendChatMessage } from "./chatSender";
 import { connectToTownRoom, reconnectToTownRoom } from "./connection";
 import { deferCancelable } from "./deferredConnect";
 import { KeyboardInput } from "./KeyboardInput";
@@ -30,6 +31,17 @@ export function createGameClient(
   function bindScene(room: Room<TownRoomState>) {
     currentRoom = room;
     keyboard ??= new KeyboardInput(window);
+
+    room.onMessage("chat", (message: ChatBroadcastEvent) => {
+      if (!destroyed) {
+        options.onChatMessage?.(message);
+      }
+    });
+    room.onMessage("chat_rejected", (message: ChatRejection) => {
+      if (!destroyed) {
+        options.onChatRejected?.(message);
+      }
+    });
 
     if (!game) {
       game = new Phaser.Game({
@@ -122,6 +134,18 @@ export function createGameClient(
       // an unconsented drop for every ordinary "student closed the tab" and
       // holds the seat open for the reconnection grace window for nothing.
       void currentRoom?.leave();
+    },
+    sendChat(text: string) {
+      if (destroyed || !currentRoom) {
+        return;
+      }
+      try {
+        sendChatMessage(currentRoom, { text });
+      } catch {
+        // Empty/over-length text never reaches the server; the chat UI is
+        // expected to already prevent submitting either, same as
+        // sendMoveIntent's validation guards a forged/out-of-range intent.
+      }
     },
   };
 }

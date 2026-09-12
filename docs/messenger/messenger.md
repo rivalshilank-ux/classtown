@@ -2,10 +2,21 @@
 
 ## Status
 
-Planned. No messenger service, chat feature, or friend-list exists in
-the code today. This repository (`classtown`) currently contains only
-the game and its teacher-facing web app — no messenger code lives here
-yet.
+Planned. No messenger service, friend-list, or account-level chat
+exists in the code today. This repository (`classtown`) currently
+contains only the game and its teacher-facing web app — no messenger
+code lives here yet.
+
+**Exception:** `apps/game-server`'s `TownRoom` broadcasts a minimal,
+ephemeral in-room chat (`chat` / `chat_rejected` messages — see
+`packages/shared-schema/src/messages.ts`), and `apps/web/app/play`
+renders it as an overlay panel. This was added deliberately, as the
+smallest thing that lets students talk to each other in a room during
+an MVP play session: no persistence, no history, no identity beyond
+"whoever is currently in this room," and no account/friend/DM concept.
+It is not the Messenger described below and does not evolve into it —
+when the real Messenger service is built, this in-room broadcast stays
+(or is replaced) independently, on its own trust boundary.
 
 ## Purpose
 

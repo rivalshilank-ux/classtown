@@ -1,5 +1,6 @@
 import { Client, Room, ServerError } from "@colyseus/core";
 import {
+  chatMessageSchema,
   INTERACTION_POINTS,
   INTERACTION_RANGE_PX,
   interactionPointById,
@@ -12,6 +13,8 @@ import {
   PlayerState,
   SPAWN_POINT,
   TownRoomState,
+  type ChatBroadcastEvent,
+  type ChatRejection,
   type DiscoveryProgress,
   type FacingDirection,
   type InteractResult,
@@ -87,6 +90,10 @@ const TOTAL_INTERACTION_POINTS = INTERACTION_POINTS.length;
 /** Guards against a client spamming "interact" faster than a person could plausibly re-press a key. */
 const INTERACT_COOLDOWN_MS = 400;
 
+/** Chat rate limit: a real student typing can't exceed this; a script flooding the room can't get past it. */
+const CHAT_RATE_LIMIT_MAX = 5;
+const CHAT_RATE_LIMIT_WINDOW_MS = 8_000;
+
 export interface TownRoomOptions {
   persistence: ClassPersistence;
   /** Overridable only for tests -- production always uses the real default. */
@@ -124,6 +131,9 @@ export class TownRoom extends Room<TownRoomState> {
 
   /** Per-session interact spam guard -- sessionId, not participantId, so a reconnect gets a clean cooldown. */
   private lastInteractAt = new Map<string, number>();
+
+  /** Per-session chat send timestamps within the current rate-limit window -- sessionId, not participantId, so a reconnect gets a clean slate. */
+  private chatTimestamps = new Map<string, number[]>();
 
   private persistence!: ClassPersistence;
   private reconnectionGraceSeconds = RECONNECTION_GRACE_SECONDS;
@@ -168,6 +178,10 @@ export class TownRoom extends Room<TownRoomState> {
     // client asks once its listeners are definitely attached instead.
     this.onMessage("request_progress", (client) => {
       this.sendDiscoveryProgress(client);
+    });
+
+    this.onMessage("chat", (client, message: unknown) => {
+      this.handleChat(client, message);
     });
   }
 
@@ -261,6 +275,7 @@ export class TownRoom extends Room<TownRoomState> {
   async onLeave(client: Client, consented: boolean) {
     this.moveIntents.delete(client.sessionId);
     this.lastInteractAt.delete(client.sessionId);
+    this.chatTimestamps.delete(client.sessionId);
 
     const record = this.sessions.get(client.sessionId);
     if (!record) {
@@ -430,5 +445,57 @@ export class TownRoom extends Room<TownRoomState> {
         payload: { activity: "campus_tour" },
       });
     }
+  }
+
+  /**
+   * Chat is plain text, broadcast verbatim: nothing here is ever rendered as
+   * HTML by a client, so there is no markup to strip. Everything that could
+   * be forged -- sender identity, timestamp -- is filled in from server-held
+   * state, never taken from the message itself. See docs on the shared
+   * chatMessageSchema for the length/emptiness rules enforced before this
+   * runs at all.
+   */
+  private handleChat(client: Client, message: unknown) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) {
+      return;
+    }
+
+    const parsed = chatMessageSchema.safeParse(message);
+    if (!parsed.success) {
+      client.send("chat_rejected", { reason: "invalid" } satisfies ChatRejection);
+      return;
+    }
+
+    if (this.isChatRateLimited(client.sessionId)) {
+      client.send("chat_rejected", { reason: "rate_limited" } satisfies ChatRejection);
+      return;
+    }
+
+    const event: ChatBroadcastEvent = {
+      sessionId: client.sessionId,
+      nickname: player.nickname,
+      text: parsed.data.text,
+      sentAt: Date.now(),
+    };
+    this.broadcast("chat", event);
+  }
+
+  /** Sliding window: at most CHAT_RATE_LIMIT_MAX sends per CHAT_RATE_LIMIT_WINDOW_MS, per session. */
+  private isChatRateLimited(sessionId: string): boolean {
+    const now = Date.now();
+    const windowStart = now - CHAT_RATE_LIMIT_WINDOW_MS;
+    const recent = (this.chatTimestamps.get(sessionId) ?? []).filter(
+      (timestamp) => timestamp > windowStart,
+    );
+
+    if (recent.length >= CHAT_RATE_LIMIT_MAX) {
+      this.chatTimestamps.set(sessionId, recent);
+      return true;
+    }
+
+    recent.push(now);
+    this.chatTimestamps.set(sessionId, recent);
+    return false;
   }
 }

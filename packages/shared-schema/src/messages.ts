@@ -32,6 +32,36 @@ export const interactMessageSchema = z.object({
 
 export type InteractMessageInput = z.infer<typeof interactMessageSchema>;
 
+/**
+ * Client -> server chat payload. Trimmed and length-capped here so an
+ * over-long or whitespace-only message never reaches the room; everything
+ * else (who sent it, when) is decided server-side, never trusted from the
+ * client.
+ */
+export const chatMessageSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "메시지를 입력해 주세요.")
+    .max(200, "메시지는 200자 이하로 입력해 주세요."),
+});
+
+export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
+
+/** Server -> all clients, broadcast for every accepted chat message. Plain
+ * text only -- rendered as-is by the client, never as HTML. */
+export interface ChatBroadcastEvent {
+  sessionId: string;
+  nickname: string;
+  text: string;
+  sentAt: number;
+}
+
+/** Server -> the sending client only, when a message was dropped instead of broadcast. */
+export interface ChatRejection {
+  reason: "rate_limited" | "invalid";
+}
+
 /** Server -> client, sent privately in reply to an "interact" message. */
 export interface InteractResult {
   ok: boolean;

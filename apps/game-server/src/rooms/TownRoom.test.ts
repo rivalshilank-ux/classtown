@@ -12,6 +12,8 @@ import {
   TILE_SIZE,
   tileTypeAt,
   TownRoomState,
+  type ChatBroadcastEvent,
+  type ChatRejection,
   type DiscoveryProgress,
   type InteractResult,
   type PlayerDiscoveryEvent,
@@ -966,5 +968,102 @@ describe("TownRoom", () => {
         await fastServer.gameServer.gracefullyShutdown(false);
       }
     }, 90000);
+  });
+
+  describe("chat", () => {
+    it("broadcasts a valid message to every client in the room, including the sender", async () => {
+      const alex = await join("Alex");
+      const sam = await join("Sam");
+      await waitFor(() => alex.state.players?.get(alex.sessionId) !== undefined);
+      await waitFor(() => sam.state.players?.get(sam.sessionId) !== undefined);
+
+      const onSam = onceMessage<ChatBroadcastEvent>(sam, "chat");
+      const onAlex = onceMessage<ChatBroadcastEvent>(alex, "chat");
+      alex.send("chat", { text: "안녕!" });
+
+      const [receivedBySam, receivedByAlex] = await Promise.all([onSam, onAlex]);
+      expect(receivedBySam).toMatchObject({ sessionId: alex.sessionId, nickname: "Alex", text: "안녕!" });
+      expect(receivedByAlex).toMatchObject({ sessionId: alex.sessionId, nickname: "Alex", text: "안녕!" });
+
+      await alex.leave();
+      await sam.leave();
+    });
+
+    it("takes the sender identity from server-held state, not from the message payload", async () => {
+      const alex = await join("Alex");
+      const sam = await join("Sam");
+      await waitFor(() => alex.state.players?.get(alex.sessionId) !== undefined);
+      await waitFor(() => sam.state.players?.get(sam.sessionId) !== undefined);
+
+      const onSam = onceMessage<ChatBroadcastEvent>(sam, "chat");
+      alex.send("chat", { text: "hi", sessionId: "forged", nickname: "Forged" });
+      const received = await onSam;
+
+      expect(received.sessionId).toBe(alex.sessionId);
+      expect(received.nickname).toBe("Alex");
+
+      await alex.leave();
+      await sam.leave();
+    });
+
+    it("trims a message before broadcasting it", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      const onChat = onceMessage<ChatBroadcastEvent>(room, "chat");
+      room.send("chat", { text: "  hi there  " });
+      const received = await onChat;
+
+      expect(received.text).toBe("hi there");
+
+      await room.leave();
+    });
+
+    it("rejects an empty message instead of broadcasting it", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      const rejection = onceMessage<ChatRejection>(room, "chat_rejected");
+      room.send("chat", { text: "   " });
+      const result = await rejection;
+
+      expect(result).toMatchObject({ reason: "invalid" });
+
+      await room.leave();
+    });
+
+    it("rejects a message over the length limit instead of broadcasting it", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      const rejection = onceMessage<ChatRejection>(room, "chat_rejected");
+      room.send("chat", { text: "a".repeat(201) });
+      const result = await rejection;
+
+      expect(result).toMatchObject({ reason: "invalid" });
+
+      await room.leave();
+    });
+
+    it("rate limits a client sending messages faster than a person plausibly could", async () => {
+      const room = await join("Alex");
+      await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+      const broadcasts: ChatBroadcastEvent[] = [];
+      const rejections: ChatRejection[] = [];
+      room.onMessage("chat", (m: ChatBroadcastEvent) => broadcasts.push(m));
+      room.onMessage("chat_rejected", (m: ChatRejection) => rejections.push(m));
+
+      for (let i = 0; i < 8; i++) {
+        room.send("chat", { text: `message ${i}` });
+      }
+
+      await waitFor(() => broadcasts.length + rejections.length >= 8);
+
+      expect(broadcasts).toHaveLength(5);
+      expect(rejections.filter((r) => r.reason === "rate_limited")).toHaveLength(3);
+
+      await room.leave();
+    });
   });
 });

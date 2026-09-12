@@ -1,6 +1,7 @@
-import type { JoinTicketOptionsInput } from "@classtown/shared-schema";
+import type { ChatBroadcastEvent, ChatRejection, JoinTicketOptionsInput } from "@classtown/shared-schema";
 
 export type { JoinTicketOptionsInput, MoveIntentInput } from "@classtown/shared-schema";
+export type { ChatBroadcastEvent, ChatRejection } from "@classtown/shared-schema";
 
 export type ConnectionStatus =
   | "connecting"
@@ -16,8 +17,12 @@ export interface GameClientOptions {
   joinOptions: JoinTicketOptionsInput;
   onStatusChange?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
+  onChatMessage?: (event: ChatBroadcastEvent) => void;
+  onChatRejected?: (event: ChatRejection) => void;
 }
 
 export interface GameClientHandle {
   destroy(): void;
+  /** No-op while not yet connected to a room -- there is nothing to send to. */
+  sendChat(text: string): void;
 }
