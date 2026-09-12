@@ -13,7 +13,9 @@ import {
 import { Logo, PixelIcon } from "@classtown/ui";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { clearStudentTicket, getStudentSession } from "@/lib/student/session";
+import { hasSeenTutorial, markTutorialSeen } from "@/lib/student/tutorial";
 import { ChatPanel, type ChatMessageItem } from "./ChatPanel";
+import { HelpOverlay } from "./HelpOverlay";
 
 const MAINTENANCE_MESSAGE = "현재 ClassTown은 점검 중입니다. 잠시 후 다시 이용해 주세요.";
 
@@ -56,6 +58,7 @@ export function GameCanvas() {
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<AnnouncementEvent | null>(null);
+  const [showHelp, setShowHelp] = useState(() => !hasSeenTutorial());
 
   // Read once, on mount. There is no nickname-only fallback any more: without a
   // ticket there is no way to prove which class this player belongs to, so the
@@ -127,6 +130,11 @@ export function GameCanvas() {
     handleRef.current?.sendChat(text);
   }
 
+  function handleDismissHelp() {
+    markTutorialSeen();
+    setShowHelp(false);
+  }
+
   if (ticketId === null) {
     return <div className="min-h-screen bg-sky-light" />;
   }
@@ -156,6 +164,15 @@ export function GameCanvas() {
           </span>
           <button
             type="button"
+            onClick={() => setShowHelp(true)}
+            aria-label="도움말 보기"
+            title="도움말 보기"
+            className="pixel-corners-sm flex items-center justify-center border-2 border-ink-900 bg-cream-400 p-1 text-sm text-wood-800 transition-colors hover:bg-cream-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600"
+          >
+            ❓
+          </button>
+          <button
+            type="button"
             onClick={handleLeave}
             aria-label="학교에서 나가기"
             title="학교에서 나가기"
@@ -165,6 +182,7 @@ export function GameCanvas() {
           </button>
         </div>
       )}
+      {!showOverlay && showHelp && <HelpOverlay onDismiss={handleDismissHelp} />}
       {!showOverlay && announcement && (
         <div
           key={announcement.id}

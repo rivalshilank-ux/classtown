@@ -21,7 +21,7 @@ Colyseus/Phaser split. Gameplay design documents:
 | [`movement.md`](./movement.md) | Implemented |
 | [`map.md`](./map.md) | Implemented |
 | [`interaction.md`](./interaction.md) | Implemented |
-| [`tutorial.md`](./tutorial.md) | Planned |
+| [`tutorial.md`](./tutorial.md) | In Progress |
 | [`game-modes.md`](./game-modes.md) | Planned |
 | [`cheat-system.md`](./cheat-system.md) | Planned |
 | [`economy.md`](./economy.md) | Planned |
@@ -38,7 +38,9 @@ identity -- see [`../architecture/overview.md`](../architecture/overview.md)),
 synchronizes server-authoritative player positions and facing direction
 (see [`movement.md`](./movement.md)) over a bounded campus map (see
 [`map.md`](./map.md)), and runs one complete gameplay loop -- the campus
-discovery tour (see [`interaction.md`](./interaction.md)).
+discovery tour (see [`interaction.md`](./interaction.md)) -- introduced
+to a new player by a static, client-only help overlay (see
+[`tutorial.md`](./tutorial.md)).
 
 ## Planned
 
