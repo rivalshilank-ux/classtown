@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createGameClient,
+  type AnnouncementEvent,
   type ChatBroadcastEvent,
   type ChatRejection,
   type ConnectionStatus,
@@ -41,6 +42,7 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
 
 const CHAT_RATE_LIMIT_MESSAGE = "메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 시도해 주세요.";
 const CHAT_ERROR_DISPLAY_MS = 3000;
+const ANNOUNCEMENT_DISPLAY_MS = 8000;
 
 export function GameCanvas() {
   const router = useRouter();
@@ -48,10 +50,12 @@ export function GameCanvas() {
   const handleRef = useRef<GameClientHandle | null>(null);
   const chatErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatMessageSeqRef = useRef(0);
+  const announcementTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState<AnnouncementEvent | null>(null);
 
   // Read once, on mount. There is no nickname-only fallback any more: without a
   // ticket there is no way to prove which class this player belongs to, so the
@@ -97,6 +101,13 @@ export function GameCanvas() {
         setChatError(CHAT_RATE_LIMIT_MESSAGE);
         chatErrorTimeoutRef.current = setTimeout(() => setChatError(null), CHAT_ERROR_DISPLAY_MS);
       },
+      onAnnouncement: (event: AnnouncementEvent) => {
+        if (announcementTimeoutRef.current) {
+          clearTimeout(announcementTimeoutRef.current);
+        }
+        setAnnouncement(event);
+        announcementTimeoutRef.current = setTimeout(() => setAnnouncement(null), ANNOUNCEMENT_DISPLAY_MS);
+      },
     });
     handleRef.current = handle;
 
@@ -105,6 +116,9 @@ export function GameCanvas() {
       handleRef.current = null;
       if (chatErrorTimeoutRef.current) {
         clearTimeout(chatErrorTimeoutRef.current);
+      }
+      if (announcementTimeoutRef.current) {
+        clearTimeout(announcementTimeoutRef.current);
       }
     };
   }, [ticketId]);
@@ -149,6 +163,16 @@ export function GameCanvas() {
           >
             <PixelIcon name="house" size={16} />
           </button>
+        </div>
+      )}
+      {!showOverlay && announcement && (
+        <div
+          key={announcement.id}
+          className="pixel-corners-sm pointer-events-none absolute left-1/2 top-3 z-20 max-w-[min(90vw,32rem)] -translate-x-1/2 border-2 border-ink-900 bg-accent-500 px-4 py-2 text-center shadow-[0_4px_0_0_#3a2415]"
+        >
+          <p className="font-[family-name:var(--font-display)] text-sm text-ink-900">
+            📢 {announcement.message}
+          </p>
         </div>
       )}
       {!showOverlay && (

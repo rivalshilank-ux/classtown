@@ -13,6 +13,7 @@ import {
 import { LogoutButton } from "./LogoutButton";
 import { ClassOverview } from "./ClassOverview";
 import { ClassManagement } from "./ClassManagement";
+import { AnnouncementForm } from "./AnnouncementForm";
 import { RosterPanel } from "./RosterPanel";
 import { RecentActivity } from "./RecentActivity";
 import { CreateClassForm } from "./CreateClassForm";
@@ -86,6 +87,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
           <>
             <ClassOverview classRecord={activeClass} summary={summary} />
             <ClassManagement classRecord={activeClass} />
+            <AnnouncementForm classId={activeClass.id} />
             <RosterPanel classRecord={activeClass} roster={roster} />
             <RecentActivity activity={activity} />
           </>

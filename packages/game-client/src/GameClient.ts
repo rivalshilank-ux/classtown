@@ -1,6 +1,11 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import type { ChatBroadcastEvent, ChatRejection, TownRoomState } from "@classtown/shared-schema";
+import type {
+  AnnouncementEvent,
+  ChatBroadcastEvent,
+  ChatRejection,
+  TownRoomState,
+} from "@classtown/shared-schema";
 import { sendChatMessage } from "./chatSender";
 import { connectToTownRoom, reconnectToTownRoom } from "./connection";
 import { deferCancelable } from "./deferredConnect";
@@ -40,6 +45,11 @@ export function createGameClient(
     room.onMessage("chat_rejected", (message: ChatRejection) => {
       if (!destroyed) {
         options.onChatRejected?.(message);
+      }
+    });
+    room.onMessage("announcement", (message: AnnouncementEvent) => {
+      if (!destroyed) {
+        options.onAnnouncement?.(message);
       }
     });
 

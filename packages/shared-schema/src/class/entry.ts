@@ -51,6 +51,14 @@ export const classNameSchema = z
   .min(1, "학급 이름을 입력해 주세요.")
   .max(60, "학급 이름은 60자 이하로 입력해 주세요.");
 
+/** Kept in sync with the CHECK constraint in
+ * supabase/migrations/20260912000000_class_announcements.sql. */
+export const classAnnouncementSchema = z
+  .string()
+  .trim()
+  .min(1, "공지 내용을 입력해 주세요.")
+  .max(280, "공지는 280자 이하로 입력해 주세요.");
+
 /** What the student entry form submits in `open` mode. */
 export const openJoinInputSchema = z.object({
   classCode: classCodeSchema,

@@ -9,6 +9,7 @@ import {
   regenerateClassCode,
   removeParticipant,
   renameClass,
+  sendAnnouncement,
   setClassJoinMode,
   setClassJoinOpen,
 } from "./teacherActions";
@@ -23,6 +24,7 @@ const {
   mockParticipantsEq,
   mockParticipantsUpdate,
   mockParticipantsMaybeSingle,
+  mockAnnouncementInsert,
   mockFrom,
   mockGetActiveMaintenanceNotice,
 } = vi.hoisted(() => {
@@ -36,6 +38,8 @@ const {
     eq: mockParticipantsEq,
   }));
 
+  const mockAnnouncementInsert = vi.fn();
+
   return {
     mockRpc: vi.fn(),
     mockEq,
@@ -43,14 +47,20 @@ const {
     mockParticipantsEq,
     mockParticipantsUpdate,
     mockParticipantsMaybeSingle,
+    mockAnnouncementInsert,
     // "classes" keeps the original update->eq shape every existing test
-    // relies on; "student_participants" (removeParticipant) is the only
-    // caller that also chains select().maybeSingle() after eq().
-    mockFrom: vi.fn((table: string) =>
-      table === "student_participants"
-        ? { update: mockParticipantsUpdate }
-        : { update: mockUpdate },
-    ),
+    // relies on; "student_participants" (removeParticipant) also chains
+    // select().maybeSingle() after eq(); "class_announcements"
+    // (sendAnnouncement) is a bare insert with no further chaining.
+    mockFrom: vi.fn((table: string) => {
+      if (table === "student_participants") {
+        return { update: mockParticipantsUpdate };
+      }
+      if (table === "class_announcements") {
+        return { insert: mockAnnouncementInsert };
+      }
+      return { update: mockUpdate };
+    }),
     mockGetActiveMaintenanceNotice: vi.fn(),
   };
 });
@@ -411,6 +421,65 @@ describe("createRosterParticipant", () => {
     const result = await createRosterParticipant(CLASS_ROW.id, "김민준");
     expect(result.success).toBe(false);
     expect(mockRpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendAnnouncement", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a non-string class id without calling supabase", async () => {
+    const result = await sendAnnouncement(123, "쉬는 시간입니다");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty message without calling supabase", async () => {
+    const result = await sendAnnouncement(CLASS_ROW.id, "   ");
+
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a message over the length limit without calling supabase", async () => {
+    const result = await sendAnnouncement(CLASS_ROW.id, "a".repeat(281));
+
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("inserts a trimmed message scoped to the class on success", async () => {
+    mockAnnouncementInsert.mockResolvedValue({ error: null });
+
+    const result = await sendAnnouncement(CLASS_ROW.id, "  쉬는 시간입니다  ");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockFrom).toHaveBeenCalledWith("class_announcements");
+    expect(mockAnnouncementInsert).toHaveBeenCalledWith({
+      class_id: CLASS_ROW.id,
+      message: "쉬는 시간입니다",
+    });
+  });
+
+  it("never leaks a database error (e.g. a class owned by another teacher)", async () => {
+    mockAnnouncementInsert.mockResolvedValue({
+      error: { message: "new row violates row-level security policy" },
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await sendAnnouncement(CLASS_ROW.id, "쉬는 시간입니다");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    consoleSpy.mockRestore();
+  });
+
+  it("blocks sending an announcement during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await sendAnnouncement(CLASS_ROW.id, "쉬는 시간입니다");
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });
 

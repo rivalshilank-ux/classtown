@@ -1,6 +1,6 @@
 "use server";
 
-import { classNameSchema, nicknameSchema } from "@classtown/shared-schema";
+import { classAnnouncementSchema, classNameSchema, nicknameSchema } from "@classtown/shared-schema";
 import type { ClassRecord, RosterParticipant } from "@classtown/shared-types";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -272,6 +272,47 @@ export async function createRosterParticipant(
       participantCode: data.participant_code,
     },
   };
+}
+
+/**
+ * Queues a message the game server delivers live to whichever of this
+ * class's students are currently connected to TownRoom (see
+ * apps/game-server/src/rooms/TownRoom.ts's deliverAnnouncements). There is
+ * no delivery confirmation surfaced here -- a class with nobody online
+ * right now just has the row sit pending until someone connects.
+ */
+export async function sendAnnouncement(
+  classId: unknown,
+  message: unknown,
+): Promise<ClassActionResult<null>> {
+  if (typeof classId !== "string") {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const parsed = classAnnouncementSchema.safeParse(message);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? GENERIC_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // Ownership is RLS's `with check (is_class_teacher(class_id))` on this
+  // table's insert policy -- a class id from another teacher's class is
+  // simply refused, the same IDOR shape as every other mutation here.
+  const { error } = await supabase
+    .from("class_announcements")
+    .insert({ class_id: classId, message: parsed.data });
+
+  if (error) {
+    console.error("sendAnnouncement failed:", error.message);
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  return { success: true, data: null };
 }
 
 /**

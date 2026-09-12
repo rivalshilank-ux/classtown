@@ -132,5 +132,46 @@ export function createSupabasePersistence(): ClassPersistence {
         console.error("addPlaySeconds failed:", error.message);
       }
     },
+
+    async pollPendingAnnouncements(classIds) {
+      if (classIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await client
+        .from("class_announcements")
+        .select("id, class_id, message")
+        .in("class_id", [...classIds])
+        .is("delivered_at", null)
+        .order("created_at", { ascending: true });
+
+      if (error || !data) {
+        if (error) {
+          console.error("pollPendingAnnouncements failed:", error.message);
+        }
+        return [];
+      }
+
+      return data.map((row) => ({
+        id: row.id,
+        classId: row.class_id,
+        message: row.message,
+      }));
+    },
+
+    async markAnnouncementsDelivered(ids): Promise<void> {
+      if (ids.length === 0) {
+        return;
+      }
+
+      const { error } = await client
+        .from("class_announcements")
+        .update({ delivered_at: new Date().toISOString() })
+        .in("id", [...ids]);
+
+      if (error) {
+        console.error("markAnnouncementsDelivered failed:", error.message);
+      }
+    },
   };
 }

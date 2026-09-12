@@ -3,10 +3,10 @@
 ## Status
 
 In Progress — authentication, profile display, class management, student
-roster/removal, and roster-mode classes (switching a class between `open`
-and `roster`, and pre-creating roster participants) are Implemented;
-in-room game control, teacher-to-class announcements, and deeper
-statistics are Planned.
+roster/removal, roster-mode classes (switching a class between `open` and
+`roster`, and pre-creating roster participants), and teacher-to-class
+announcements are Implemented; in-room game control (starting/pausing/
+ending a session) and deeper statistics are Planned.
 
 ## Purpose
 
@@ -104,6 +104,31 @@ session (`is_class_teacher()`). See
   batched heartbeat — see
   [`../adr/0002-class-and-student-participants.md`](../adr/0002-class-and-student-participants.md).
 
+### Announcements
+
+- `AnnouncementForm` on `/teacher` → `sendAnnouncement()` inserts a row
+  into `public.class_announcements` (RLS: `is_class_teacher(class_id)`,
+  `supabase/migrations/20260912000000_class_announcements.sql`). This is
+  distinct from the admin's site-wide announcements
+  ([`../admin/admin.md`](../admin/admin.md)) — a `class_announcements` row
+  targets exactly one class and is delivered once, live, never stored as a
+  banner a page renders.
+- Delivery has nothing to do with Colyseus room isolation: `TownRoom`
+  (`apps/game-server/src/rooms/TownRoom.ts`'s `deliverAnnouncements`,
+  polled every 4s) already tracks each connected session's `classId` (see
+  ADR 0002), so it polls for pending rows scoped to exactly the classIds
+  currently in the room and sends the `announcement` message only to
+  matching sessions — the shared-room architecture (see "Room-per-class
+  isolation" under Planned) required no change for this to work correctly.
+  A class with nobody connected right now simply leaves its row pending
+  until someone from that class joins.
+- No delivery receipt is surfaced to the teacher and no history view
+  exists yet — `sendAnnouncement()` only confirms the row was queued.
+  Rendered as a dismissing banner in `apps/web/app/play/GameCanvas.tsx`
+  (distinct from the in-room chat overlay — see
+  [`../messenger/messenger.md`](../messenger/messenger.md) for why that
+  chat is out of scope for evolving into this).
+
 ## Planned
 
 - **Room-per-class isolation** — today all classes' students share one
@@ -113,9 +138,6 @@ session (`is_class_teacher()`). See
   [`../architecture/overview.md`](../architecture/overview.md).
 - **Game control** — starting/pausing/ending a session from the teacher
   side.
-- **Announcements** — teacher-to-class messaging inside a room (distinct
-  from the admin's site-wide announcements — see
-  [`../admin/admin.md`](../admin/admin.md)).
 - **Deeper statistics** — the roster and activity feed already cover
   headline numbers (count, online, level, XP, recent joins/leaves);
   anything beyond that (trends over time, per-zone occupancy) is still a
@@ -134,10 +156,14 @@ against a real database, not just asserted.
 
 Auth: `getCurrentTeacher.test.ts`, `teacherActions.test.ts` (auth),
 `formErrors.test.ts`, `proxy.test.ts`, `middleware.test.ts`. Class
-management, student removal, and join-mode/roster-participant actions:
-`teacherActions.test.ts` (class/roster actions), plus real-session IDOR
-verification (Teacher A cannot rename, regenerate, or remove from Teacher
-B's class) during Phase 8 against a fresh local Postgres instance.
+management, student removal, join-mode/roster-participant actions, and
+sending an announcement: `teacherActions.test.ts` (class/roster actions),
+plus real-session IDOR verification (Teacher A cannot rename, regenerate,
+or remove from Teacher B's class) during Phase 8 against a fresh local
+Postgres instance. Announcement delivery and class filtering: the
+`announcements` block in
+`apps/game-server/src/rooms/TownRoom.test.ts`, against a real Colyseus
+server with a fake persistence layer.
 
 ## Related Documents
 

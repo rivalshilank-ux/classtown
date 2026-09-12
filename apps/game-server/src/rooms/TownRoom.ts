@@ -13,6 +13,7 @@ import {
   PlayerState,
   SPAWN_POINT,
   TownRoomState,
+  type AnnouncementEvent,
   type ChatBroadcastEvent,
   type ChatRejection,
   type DiscoveryProgress,
@@ -28,6 +29,13 @@ import type { ClassPersistence, JoinIdentity } from "../persistence/types.js";
 const MOVE_SPEED = 160;
 const SIMULATION_INTERVAL_MS = 1000 / 20;
 const HEARTBEAT_INTERVAL_MS = 60_000;
+
+/**
+ * Frequent enough that a teacher's announcement feels close to live without
+ * turning it into a second chat channel's polling load; the room only ever
+ * queries for classIds it currently has a connected session for.
+ */
+const ANNOUNCEMENT_POLL_INTERVAL_MS = 4_000;
 
 /**
  * A session shorter than this emits no joined/left events, so a student
@@ -101,6 +109,8 @@ export interface TownRoomOptions {
   /** Overridable only for tests -- lets a full-campus-tour test cross the
    * map in real time instead of ~160px/s. Production always uses MOVE_SPEED. */
   moveSpeed?: number;
+  /** Overridable only for tests -- production always uses the real default. */
+  announcementPollIntervalMs?: number;
 }
 
 interface SessionRecord {
@@ -154,6 +164,10 @@ export class TownRoom extends Room<TownRoomState> {
     this.clock.setInterval(() => {
       void this.heartbeat();
     }, HEARTBEAT_INTERVAL_MS);
+
+    this.clock.setInterval(() => {
+      void this.deliverAnnouncements();
+    }, options.announcementPollIntervalMs ?? ANNOUNCEMENT_POLL_INTERVAL_MS);
 
     this.onMessage("move", (client, message: unknown) => {
       const parsed = moveIntentSchema.safeParse(message);
@@ -322,6 +336,44 @@ export class TownRoom extends Room<TownRoomState> {
       return;
     }
     await this.persistence.markSeen(participantIds);
+  }
+
+  /**
+   * Delivers a teacher's announcement to only the sessions belonging to its
+   * class -- this room is shared across every class (see docs/teacher/
+   * teacher.md's "Room-per-class isolation" Planned note), so this is the one
+   * place a broadcast is filtered by classId instead of going to everyone the
+   * way chat does.
+   */
+  private async deliverAnnouncements() {
+    const classIds = new Set<string>();
+    for (const record of this.sessions.values()) {
+      classIds.add(record.identity.classId);
+    }
+    if (classIds.size === 0) {
+      return;
+    }
+
+    const pending = await this.persistence.pollPendingAnnouncements([...classIds]);
+    if (pending.length === 0) {
+      return;
+    }
+
+    for (const announcement of pending) {
+      const event: AnnouncementEvent = {
+        id: announcement.id,
+        message: announcement.message,
+        sentAt: Date.now(),
+      };
+      for (const [sessionId, record] of this.sessions) {
+        if (record.identity.classId !== announcement.classId) {
+          continue;
+        }
+        this.clients.find((c) => c.sessionId === sessionId)?.send("announcement", event);
+      }
+    }
+
+    await this.persistence.markAnnouncementsDelivered(pending.map((row) => row.id));
   }
 
   private movePlayers(deltaTimeMs: number) {

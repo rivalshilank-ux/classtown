@@ -96,3 +96,15 @@ export interface TourCompletedEvent {
   sessionId: string;
   nickname: string;
 }
+
+/**
+ * Server -> only the clients whose session belongs to the target class,
+ * delivered once when the room's announcement poll picks up a pending
+ * `class_announcements` row. Never re-sent -- a client that was offline when
+ * this fired simply never receives it.
+ */
+export interface AnnouncementEvent {
+  id: string;
+  message: string;
+  sentAt: number;
+}

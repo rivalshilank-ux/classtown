@@ -1,5 +1,6 @@
 export { createGameClient } from "./GameClient";
 export type {
+  AnnouncementEvent,
   ChatBroadcastEvent,
   ChatRejection,
   ConnectionStatus,

@@ -12,6 +12,7 @@ import {
   TILE_SIZE,
   tileTypeAt,
   TownRoomState,
+  type AnnouncementEvent,
   type ChatBroadcastEvent,
   type ChatRejection,
   type DiscoveryProgress,
@@ -26,6 +27,7 @@ import {
 } from "../persistence/fakePersistence.js";
 
 const CLASS_ID = "11111111-1111-4111-8111-111111111111";
+const OTHER_CLASS_ID = "33333333-3333-4333-8333-333333333333";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -221,19 +223,19 @@ describe("TownRoom", () => {
   let participantSeq = 0;
 
   /** Mints a fresh identity + ticket, the way the web join action would. */
-  function ticketFor(nickname: string) {
+  function ticketFor(nickname: string, classId: string = CLASS_ID) {
     participantSeq += 1;
     return persistence.issueTicket({
       participantId: `22222222-2222-4222-8222-${String(participantSeq).padStart(12, "0")}`,
-      classId: CLASS_ID,
+      classId,
       nickname,
     });
   }
 
-  async function join(nickname: string) {
+  async function join(nickname: string, classId: string = CLASS_ID) {
     const client = new Client(endpoint);
     return client.joinOrCreate<TownRoomState>("town", {
-      ticket: ticketFor(nickname),
+      ticket: ticketFor(nickname, classId),
     });
   }
 
@@ -432,11 +434,15 @@ describe("TownRoom", () => {
         [
           "addPlaySeconds",
           "consumeJoinTicket",
+          "deliveredAnnouncementIds",
           "events",
           "isMaintenanceActive",
           "issueTicket",
+          "markAnnouncementsDelivered",
           "markSeen",
           "playSeconds",
+          "pollPendingAnnouncements",
+          "queueAnnouncement",
           "recordEvent",
           "seen",
           "setMaintenanceActive",
@@ -1065,5 +1071,94 @@ describe("TownRoom", () => {
 
       await room.leave();
     });
+  });
+
+  describe("announcements", () => {
+    /** A short poll interval so these tests don't have to wait out the real 4s production cadence. */
+    const POLL_INTERVAL_MS = 100;
+
+    async function withFastAnnouncements(
+      run: (endpoint: string) => Promise<void>,
+    ) {
+      const fastServer = createGameServer({
+        persistence,
+        announcementPollIntervalMs: POLL_INTERVAL_MS,
+      });
+      await fastServer.gameServer.listen(0);
+      const { port } = fastServer.httpServer.address() as AddressInfo;
+      try {
+        await run(`ws://localhost:${port}`);
+      } finally {
+        await fastServer.gameServer.gracefullyShutdown(false);
+      }
+    }
+
+    it("delivers a pending announcement only to sessions in its class", async () => {
+      await withFastAnnouncements(async (fastEndpoint) => {
+        const inClass = await new Client(fastEndpoint).joinOrCreate<TownRoomState>("town", {
+          ticket: ticketFor("Alex", CLASS_ID),
+        });
+        const otherClass = await new Client(fastEndpoint).joinOrCreate<TownRoomState>("town", {
+          ticket: ticketFor("Sam", OTHER_CLASS_ID),
+        });
+        await waitFor(() => inClass.state.players?.get(inClass.sessionId) !== undefined);
+        await waitFor(() => otherClass.state.players?.get(otherClass.sessionId) !== undefined);
+
+        const otherClassReceived: AnnouncementEvent[] = [];
+        otherClass.onMessage("announcement", (m: AnnouncementEvent) => otherClassReceived.push(m));
+        const onInClass = onceMessage<AnnouncementEvent>(inClass, "announcement");
+
+        persistence.queueAnnouncement(CLASS_ID, "쉬는 시간입니다!");
+        const received = await onInClass;
+
+        expect(received.message).toBe("쉬는 시간입니다!");
+        // Gives a second poll cycle a chance to have run, so this isn't just
+        // "no message arrived yet" -- the other class's own poll definitely
+        // executed and still found nothing for it.
+        await sleep(POLL_INTERVAL_MS * 3);
+        expect(otherClassReceived).toHaveLength(0);
+
+        await inClass.leave();
+        await otherClass.leave();
+      });
+    }, 10000);
+
+    it("marks a delivered announcement so it is never sent twice", async () => {
+      await withFastAnnouncements(async (fastEndpoint) => {
+        const room = await new Client(fastEndpoint).joinOrCreate<TownRoomState>("town", {
+          ticket: ticketFor("Alex", CLASS_ID),
+        });
+        await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+        const received: AnnouncementEvent[] = [];
+        room.onMessage("announcement", (m: AnnouncementEvent) => received.push(m));
+
+        const id = persistence.queueAnnouncement(CLASS_ID, "집중해 주세요!");
+        await waitFor(() => received.length >= 1);
+        await waitFor(() => persistence.deliveredAnnouncementIds.includes(id));
+
+        // A few more poll cycles pass with the row already marked delivered.
+        await sleep(POLL_INTERVAL_MS * 5);
+        expect(received).toHaveLength(1);
+
+        await room.leave();
+      });
+    }, 10000);
+
+    it("never queries for a class with no connected session", async () => {
+      await withFastAnnouncements(async (fastEndpoint) => {
+        const room = await new Client(fastEndpoint).joinOrCreate<TownRoomState>("town", {
+          ticket: ticketFor("Alex", CLASS_ID),
+        });
+        await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+        persistence.queueAnnouncement(OTHER_CLASS_ID, "아무도 없는 학급");
+        await sleep(POLL_INTERVAL_MS * 5);
+
+        expect(persistence.deliveredAnnouncementIds).toHaveLength(0);
+
+        await room.leave();
+      });
+    }, 10000);
   });
 });

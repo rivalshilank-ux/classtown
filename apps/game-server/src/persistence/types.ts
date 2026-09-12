@@ -38,4 +38,17 @@ export interface ClassPersistence {
    * should not destroy anyone's in-progress game state.
    */
   isMaintenanceActive(): Promise<boolean>;
+
+  /**
+   * Undelivered `class_announcements` rows for any of the given classes, in
+   * the order they were sent. The room calls this on a timer with exactly
+   * the classIds it currently has a connected session for -- a class with no
+   * students in the room right now is never queried.
+   */
+  pollPendingAnnouncements(
+    classIds: readonly string[],
+  ): Promise<{ id: string; classId: string; message: string }[]>;
+
+  /** Marks announcements delivered so the next poll doesn't redeliver them. */
+  markAnnouncementsDelivered(ids: readonly string[]): Promise<void>;
 }

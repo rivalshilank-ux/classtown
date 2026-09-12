@@ -10,12 +10,14 @@ export interface GameServerOptions {
   /** Overridable only for tests -- production always uses TownRoom's real defaults. */
   reconnectionGraceSeconds?: number;
   moveSpeed?: number;
+  announcementPollIntervalMs?: number;
 }
 
 export function createGameServer({
   persistence,
   reconnectionGraceSeconds,
   moveSpeed,
+  announcementPollIntervalMs,
 }: GameServerOptions) {
   const app = express();
 
@@ -32,7 +34,12 @@ export function createGameServer({
   // Persistence is injected rather than imported so the room has no hard
   // dependency on a live database, and tests can drive the join flow with a
   // fake instead of a real Supabase project.
-  gameServer.define("town", TownRoom, { persistence, reconnectionGraceSeconds, moveSpeed });
+  gameServer.define("town", TownRoom, {
+    persistence,
+    reconnectionGraceSeconds,
+    moveSpeed,
+    announcementPollIntervalMs,
+  });
 
   return { app, httpServer, gameServer };
 }

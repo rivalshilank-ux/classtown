@@ -120,6 +120,38 @@ export type Database = {
         }
         Relationships: []
       }
+      class_announcements: {
+        Row: {
+          class_id: string
+          created_at: string
+          delivered_at: string | null
+          id: string
+          message: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          message: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_announcements_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classes: {
         Row: {
           archived_at: string | null

@@ -15,6 +15,9 @@ export interface FakePersistence extends ClassPersistence {
   readonly playSeconds: Map<string, number>;
   /** Test hook: flips what isMaintenanceActive() returns. Defaults to false. */
   setMaintenanceActive(active: boolean): void;
+  /** Test hook: queues a pending announcement the way createAnnouncement() would. */
+  queueAnnouncement(classId: string, message: string): string;
+  readonly deliveredAnnouncementIds: string[];
 }
 
 /**
@@ -27,13 +30,17 @@ export function createFakePersistence(): FakePersistence {
   const events: RecordedEvent[] = [];
   const seen: string[][] = [];
   const playSeconds = new Map<string, number>();
+  const announcements: { id: string; classId: string; message: string; delivered: boolean }[] = [];
+  const deliveredAnnouncementIds: string[] = [];
   let counter = 0;
+  let announcementCounter = 0;
   let maintenanceActive = false;
 
   return {
     events,
     seen,
     playSeconds,
+    deliveredAnnouncementIds,
 
     setMaintenanceActive(active) {
       maintenanceActive = active;
@@ -71,6 +78,33 @@ export function createFakePersistence(): FakePersistence {
 
     addPlaySeconds(participantId, seconds) {
       playSeconds.set(participantId, (playSeconds.get(participantId) ?? 0) + seconds);
+      return Promise.resolve();
+    },
+
+    queueAnnouncement(classId, message) {
+      announcementCounter += 1;
+      const id = `00000000-0000-4000-9000-${String(announcementCounter).padStart(12, "0")}`;
+      announcements.push({ id, classId, message, delivered: false });
+      return id;
+    },
+
+    pollPendingAnnouncements(classIds) {
+      const wanted = new Set(classIds);
+      return Promise.resolve(
+        announcements
+          .filter((row) => !row.delivered && wanted.has(row.classId))
+          .map(({ id, classId, message }) => ({ id, classId, message })),
+      );
+    },
+
+    markAnnouncementsDelivered(ids) {
+      const wanted = new Set(ids);
+      for (const row of announcements) {
+        if (wanted.has(row.id)) {
+          row.delivered = true;
+          deliveredAnnouncementIds.push(row.id);
+        }
+      }
       return Promise.resolve();
     },
   };

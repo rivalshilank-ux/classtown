@@ -1,7 +1,12 @@
-import type { ChatBroadcastEvent, ChatRejection, JoinTicketOptionsInput } from "@classtown/shared-schema";
+import type {
+  AnnouncementEvent,
+  ChatBroadcastEvent,
+  ChatRejection,
+  JoinTicketOptionsInput,
+} from "@classtown/shared-schema";
 
 export type { JoinTicketOptionsInput, MoveIntentInput } from "@classtown/shared-schema";
-export type { ChatBroadcastEvent, ChatRejection } from "@classtown/shared-schema";
+export type { AnnouncementEvent, ChatBroadcastEvent, ChatRejection } from "@classtown/shared-schema";
 
 export type ConnectionStatus =
   | "connecting"
@@ -19,6 +24,7 @@ export interface GameClientOptions {
   onError?: (message: string) => void;
   onChatMessage?: (event: ChatBroadcastEvent) => void;
   onChatRejected?: (event: ChatRejection) => void;
+  onAnnouncement?: (event: AnnouncementEvent) => void;
 }
 
 export interface GameClientHandle {
