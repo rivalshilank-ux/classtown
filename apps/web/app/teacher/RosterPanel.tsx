@@ -1,10 +1,12 @@
 import { Badge, Panel, StatusDot } from "@classtown/ui";
 import { formatEntryCode } from "@classtown/shared-schema";
-import type { RosterEntry } from "@classtown/shared-types";
+import type { ClassRecord, RosterEntry } from "@classtown/shared-types";
 import { ONLINE_WINDOW_MS } from "@/lib/class/queries";
 import { RemoveStudentButton } from "./RemoveStudentButton";
+import { RosterParticipantForm } from "./RosterParticipantForm";
 
 interface RosterPanelProps {
+  classRecord: ClassRecord;
   roster: RosterEntry[];
 }
 
@@ -12,12 +14,16 @@ function isOnline(lastSeenAt: string | null): boolean {
   return lastSeenAt !== null && Date.parse(lastSeenAt) > Date.now() - ONLINE_WINDOW_MS;
 }
 
-export function RosterPanel({ roster }: RosterPanelProps) {
+export function RosterPanel({ classRecord, roster }: RosterPanelProps) {
   return (
     <Panel variant="paper" className="flex flex-col gap-3">
       <span className="font-[family-name:var(--font-display)] text-xs tracking-wide text-ink-600">
         STUDENTS
       </span>
+
+      {classRecord.joinMode === "roster" && (
+        <RosterParticipantForm classId={classRecord.id} />
+      )}
 
       {roster.length === 0 ? (
         <p className="py-2 text-sm text-ink-600">

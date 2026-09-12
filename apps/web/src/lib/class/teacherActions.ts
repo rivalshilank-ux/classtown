@@ -1,7 +1,7 @@
 "use server";
 
-import { classNameSchema } from "@classtown/shared-schema";
-import type { ClassRecord } from "@classtown/shared-types";
+import { classNameSchema, nicknameSchema } from "@classtown/shared-schema";
+import type { ClassRecord, RosterParticipant } from "@classtown/shared-types";
 import { MAINTENANCE_MODE_ERROR_CODE } from "@classtown/shared-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveMaintenanceNotice } from "@/lib/site/maintenance";
@@ -193,6 +193,85 @@ export async function setClassJoinOpen(
   }
 
   return { success: true, data: null };
+}
+
+/**
+ * `open` classes accept a bare nickname at the door and mint a participant on
+ * the spot; `roster` classes only ever admit a nickname the teacher already
+ * created via `createRosterParticipant` below (see `join_class` in
+ * 20260905070000_class_rpcs.sql). Switching an `open` class to `roster` does
+ * not affect students already inside -- their participant codes still work
+ * for rejoining either way.
+ */
+export async function setClassJoinMode(
+  classId: unknown,
+  joinMode: unknown,
+): Promise<ClassActionResult<null>> {
+  if (typeof classId !== "string" || (joinMode !== "open" && joinMode !== "roster")) {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("classes")
+    .update({ join_mode: joinMode })
+    .eq("id", classId);
+
+  if (error) {
+    console.error("setClassJoinMode failed:", error.message);
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  return { success: true, data: null };
+}
+
+/**
+ * A roster class has no self-registration fallback, so a student can only
+ * ever enter with a participant code the teacher minted ahead of time here.
+ * The nickname is cosmetic -- the code is what the student actually types in.
+ */
+export async function createRosterParticipant(
+  classId: unknown,
+  nickname: unknown,
+): Promise<ClassActionResult<RosterParticipant>> {
+  if (typeof classId !== "string") {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const parsed = nicknameSchema.safeParse(nickname);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? NAME_ERROR };
+  }
+
+  const maintenance = await checkMaintenanceGate();
+  if (maintenance) {
+    return { success: false, ...maintenance };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("create_roster_participant", {
+    p_class_id: classId,
+    p_nickname: parsed.data,
+  });
+
+  if (error || !data) {
+    console.error("create_roster_participant failed:", error?.message ?? "no row returned");
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  return {
+    success: true,
+    data: {
+      id: data.id,
+      nickname: data.nickname,
+      participantCode: data.participant_code,
+    },
+  };
 }
 
 /**

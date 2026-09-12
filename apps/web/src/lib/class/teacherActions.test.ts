@@ -5,9 +5,11 @@ vi.mock("server-only", () => ({}));
 import {
   archiveClass,
   createClass,
+  createRosterParticipant,
   regenerateClassCode,
   removeParticipant,
   renameClass,
+  setClassJoinMode,
   setClassJoinOpen,
 } from "./teacherActions";
 
@@ -289,6 +291,126 @@ describe("setClassJoinOpen", () => {
     const result = await setClassJoinOpen(CLASS_ROW.id, false);
     expect(result.success).toBe(false);
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("setClassJoinMode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a joinMode that isn't 'open' or 'roster' without calling supabase", async () => {
+    const result = await setClassJoinMode(CLASS_ROW.id, "invited");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-string class id without calling supabase", async () => {
+    const result = await setClassJoinMode(42, "roster");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("updates join_mode on success", async () => {
+    mockEq.mockResolvedValue({ error: null });
+
+    const result = await setClassJoinMode(CLASS_ROW.id, "roster");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(mockFrom).toHaveBeenCalledWith("classes");
+    expect(mockUpdate).toHaveBeenCalledWith({ join_mode: "roster" });
+    expect(mockEq).toHaveBeenCalledWith("id", CLASS_ROW.id);
+  });
+
+  it("does not leak a database error", async () => {
+    mockEq.mockResolvedValue({ error: { message: "permission denied" } });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await setClassJoinMode(CLASS_ROW.id, "roster");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    consoleSpy.mockRestore();
+  });
+
+  it("blocks changing join mode during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await setClassJoinMode(CLASS_ROW.id, "roster");
+    expect(result.success).toBe(false);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("createRosterParticipant", () => {
+  const PARTICIPANT_ROW = {
+    id: "44444444-4444-4444-8444-444444444444",
+    nickname: "김민준",
+    participant_code: "XYZ789",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a non-string class id without calling supabase", async () => {
+    const result = await createRosterParticipant(123, "김민준");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid nickname without calling supabase", async () => {
+    const result = await createRosterParticipant(CLASS_ROW.id, "");
+
+    expect(result.success).toBe(false);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("calls create_roster_participant with the class id and trimmed nickname", async () => {
+    mockRpc.mockResolvedValue({ data: PARTICIPANT_ROW, error: null });
+
+    await createRosterParticipant(CLASS_ROW.id, "김민준");
+
+    expect(mockRpc).toHaveBeenCalledWith("create_roster_participant", {
+      p_class_id: CLASS_ROW.id,
+      p_nickname: "김민준",
+    });
+  });
+
+  it("maps a successful row into a RosterParticipant", async () => {
+    mockRpc.mockResolvedValue({ data: PARTICIPANT_ROW, error: null });
+
+    const result = await createRosterParticipant(CLASS_ROW.id, "김민준");
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        id: PARTICIPANT_ROW.id,
+        nickname: PARTICIPANT_ROW.nickname,
+        participantCode: PARTICIPANT_ROW.participant_code,
+      },
+    });
+  });
+
+  it("never leaks the database error to the caller (e.g. a class owned by another teacher)", async () => {
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "not your class" },
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await createRosterParticipant(CLASS_ROW.id, "김민준");
+
+    expect(result).toEqual({ success: false, error: GENERIC });
+    consoleSpy.mockRestore();
+  });
+
+  it("blocks creating a roster participant during maintenance", async () => {
+    mockGetActiveMaintenanceNotice.mockResolvedValue(MAINTENANCE_ACTIVE);
+    const result = await createRosterParticipant(CLASS_ROW.id, "김민준");
+    expect(result.success).toBe(false);
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });
 

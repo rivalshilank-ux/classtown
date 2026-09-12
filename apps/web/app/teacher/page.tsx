@@ -86,7 +86,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
           <>
             <ClassOverview classRecord={activeClass} summary={summary} />
             <ClassManagement classRecord={activeClass} />
-            <RosterPanel roster={roster} />
+            <RosterPanel classRecord={activeClass} roster={roster} />
             <RecentActivity activity={activity} />
           </>
         ) : (
@@ -103,7 +103,7 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
           </Panel>
         )}
 
-        {activeClass && (
+        {activeClass && activeClass.joinMode === "open" && (
           <Panel variant="paper" className="flex flex-col gap-3">
             <span className="font-[family-name:var(--font-display)] text-xs tracking-wide text-ink-600">
               학생 안내용 참가 코드
@@ -113,6 +113,21 @@ export default async function TeacherPage({ searchParams }: TeacherPageProps) {
             </p>
             <p className="text-xs text-ink-600">
               칠판에 적어주세요. 학생은 이 코드와 닉네임만 있으면 입장할 수 있어요.
+            </p>
+          </Panel>
+        )}
+
+        {activeClass && activeClass.joinMode === "roster" && (
+          <Panel variant="paper" className="flex flex-col gap-3">
+            <span className="font-[family-name:var(--font-display)] text-xs tracking-wide text-ink-600">
+              학생 안내용 참가 코드
+            </span>
+            <p className="font-[family-name:var(--font-display)] text-3xl tracking-widest text-ink-900">
+              {formatEntryCode(activeClass.classCode)}
+            </p>
+            <p className="text-xs text-ink-600">
+              명단 참가 학급이에요. 학생은 이 참가 코드와, 위 STUDENTS에서 각자에게
+              발급한 학생 코드를 함께 입력해야 입장할 수 있어요.
             </p>
           </Panel>
         )}

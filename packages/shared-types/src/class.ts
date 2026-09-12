@@ -27,6 +27,13 @@ export interface RosterEntry {
   xp: number;
 }
 
+/** What creating a roster participant hands back -- just enough for a teacher to write the code down. */
+export interface RosterParticipant {
+  id: string;
+  nickname: string;
+  participantCode: string;
+}
+
 export type ActivityEventType = "joined" | "left" | "activity_completed";
 
 export interface ActivityEntry {

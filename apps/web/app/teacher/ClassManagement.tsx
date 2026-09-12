@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Panel, TextField } from "@classtown/ui";
 import { classNameSchema, formatEntryCode } from "@classtown/shared-schema";
 import type { ClassRecord } from "@classtown/shared-types";
-import { archiveClass, regenerateClassCode, renameClass } from "@/lib/class/teacherActions";
+import {
+  archiveClass,
+  regenerateClassCode,
+  renameClass,
+  setClassJoinMode,
+} from "@/lib/class/teacherActions";
 
 interface ClassManagementProps {
   classRecord: ClassRecord;
@@ -17,9 +22,34 @@ export function ClassManagement({ classRecord }: ClassManagementProps) {
   const [isRenaming, startRename] = useTransition();
   const [isRegenerating, startRegenerate] = useTransition();
   const [isArchiving, startArchive] = useTransition();
+  const [isChangingMode, startChangeMode] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const isPending = isRenaming || isRegenerating || isArchiving;
+  const isPending = isRenaming || isRegenerating || isArchiving || isChangingMode;
+
+  function handleJoinModeChange(mode: "open" | "roster") {
+    if (isPending || mode === classRecord.joinMode) {
+      return;
+    }
+    if (
+      mode === "roster" &&
+      !window.confirm(
+        "명단 참가로 바꿀까요? 이제부터는 닉네임만으로 새로 입장할 수 없고, 미리 만들어 둔 학생 코드로만 입장할 수 있어요.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+
+    startChangeMode(async () => {
+      const result = await setClassJoinMode(classRecord.id, mode);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   function handleRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,6 +157,36 @@ export function ClassManagement({ classRecord }: ClassManagementProps) {
       <p className="text-xs text-ink-600">
         현재 참가 코드: {formatEntryCode(classRecord.classCode)}
       </p>
+
+      <div className="flex flex-col gap-2 border-t-2 border-wood-600/25 pt-3">
+        <span className="text-xs text-ink-600">입장 방식</span>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="입장 방식">
+          <Button
+            type="button"
+            variant={classRecord.joinMode === "open" ? "primary" : "ghost"}
+            onClick={() => handleJoinModeChange("open")}
+            disabled={isPending}
+            aria-pressed={classRecord.joinMode === "open"}
+          >
+            자율 참가
+          </Button>
+          <Button
+            type="button"
+            variant={classRecord.joinMode === "roster" ? "primary" : "ghost"}
+            onClick={() => handleJoinModeChange("roster")}
+            isLoading={isChangingMode}
+            disabled={isPending}
+            aria-pressed={classRecord.joinMode === "roster"}
+          >
+            명단 참가
+          </Button>
+        </div>
+        <p className="text-xs text-ink-600">
+          {classRecord.joinMode === "open"
+            ? "학생이 참가 코드와 닉네임만으로 자유롭게 입장해요."
+            : "아래에서 만든 학생 코드로만 입장할 수 있어요. 새 닉네임으로는 입장할 수 없어요."}
+        </p>
+      </div>
     </Panel>
   );
 }

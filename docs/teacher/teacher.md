@@ -2,9 +2,11 @@
 
 ## Status
 
-In Progress — authentication, profile display, class management, and
-student roster/removal are Implemented; in-room game control, teacher-to
--class announcements, and deeper statistics are Planned.
+In Progress — authentication, profile display, class management, student
+roster/removal, and roster-mode classes (switching a class between `open`
+and `roster`, and pre-creating roster participants) are Implemented;
+in-room game control, teacher-to-class announcements, and deeper
+statistics are Planned.
 
 ## Purpose
 
@@ -68,8 +70,28 @@ session (`is_class_teacher()`). See
   existing student rows, progression, and activity history are untouched.
 - **Toggle** whether joining is currently open (`join_open`), independent
   of archiving — closes the door mid-lesson without rotating the code.
+- **Switch join mode** between `open` (default: any class code + nickname
+  admits a first-time student) and `roster` (`setClassJoinMode()` →
+  updates `classes.join_mode` directly, RLS-scoped like rename/archive).
+  A roster class has no self-registration fallback: `join_class()` refuses
+  a bare nickname once `join_mode = 'roster'` (see
+  `supabase/migrations/20260905070000_class_rpcs.sql`), so a student can
+  only enter with a participant code the teacher minted ahead of time.
+  Switching modes on an existing class does not affect students already
+  inside — their participant codes keep working for rejoining either way.
 
 ### Student roster
+
+- **Pre-create a roster participant** (`RosterParticipantForm`,
+  `createRosterParticipant()` → `create_roster_participant()` RPC) —
+  shown on `/teacher` only for a `roster`-mode class. Returns a fresh
+  participant code the teacher hands to one specific student; the
+  participant then appears in the roster below immediately (level 1, 0
+  XP, offline) even before that student ever connects. The student-side
+  entry form (`apps/web/app/student/StudentEntryForm.tsx`) has a "학생
+  코드가 있어요" toggle that swaps the nickname field for a participant-code
+  field, calling the same `joinClass()` action with `participantCode`
+  instead of `nickname`.
 
 - Nickname, participant code, status, last seen, level, and XP for every
   active/transferred participant in the teacher's own class(es); a recent
@@ -98,10 +120,6 @@ session (`is_class_teacher()`). See
   headline numbers (count, online, level, XP, recent joins/leaves);
   anything beyond that (trends over time, per-zone occupancy) is still a
   direction, not a design.
-- **Roster-mode classes** (teacher pre-creates participants by code
-  instead of open self-registration) — the underlying RPC
-  (`create_roster_participant`) exists and is tested, but no management
-  UI has been built for it yet.
 
 ## Security
 
@@ -116,10 +134,10 @@ against a real database, not just asserted.
 
 Auth: `getCurrentTeacher.test.ts`, `teacherActions.test.ts` (auth),
 `formErrors.test.ts`, `proxy.test.ts`, `middleware.test.ts`. Class
-management and student removal: `teacherActions.test.ts` (class/roster
-actions), plus real-session IDOR verification (Teacher A cannot rename,
-regenerate, or remove from Teacher B's class) during Phase 8 against a
-fresh local Postgres instance.
+management, student removal, and join-mode/roster-participant actions:
+`teacherActions.test.ts` (class/roster actions), plus real-session IDOR
+verification (Teacher A cannot rename, regenerate, or remove from Teacher
+B's class) during Phase 8 against a fresh local Postgres instance.
 
 ## Related Documents
 
