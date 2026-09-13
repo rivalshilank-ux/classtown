@@ -5,9 +5,10 @@
 In Progress — deployment is Implemented (Vercel, git-triggered), CI is
 Implemented (GitHub Actions, runs on every push to `master`), an
 automated weekly update-plan/deployment pipeline is Implemented but
-disabled by default (see [`../admin/admin.md`](../admin/admin.md)), and
-an automated dependency vulnerability scan (`pnpm audit`) is Implemented
-in CI; automated backups and ops reporting are Planned.
+disabled by default (see [`../admin/admin.md`](../admin/admin.md)), an
+automated dependency vulnerability scan (`pnpm audit`) is Implemented in
+CI, and a daily scheduled health-report job with Discord-webhook alerting
+is Implemented but disabled by default; automated backups are Planned.
 
 ## Purpose
 
@@ -29,7 +30,7 @@ git push (GitHub, rivalshilank-ux/classtown, branch: master)
                  ▼
              Preview deployment (non-production branch) or Production deployment
 
-Separately, Vercel Cron (apps/web/vercel.json) hits two CRON_SECRET-gated
+Separately, Vercel Cron (apps/web/vercel.json) hits three CRON_SECRET-gated
 routes on a schedule:
   Sun 19:00 KST → /api/cron/weekly-check  → proposes an update plan
   Sat 03:00 KST → /api/cron/weekly-update → runs the deploy pipeline,
@@ -37,6 +38,11 @@ routes on a schedule:
                                              both approved a plan AND
                                              turned ops_config.auto_update_enabled
                                              on (default: off)
+  daily 07:00 KST → /api/cron/health-check → checks the game server and
+                                             alerts via Discord webhook on
+                                             failure, but only if
+                                             ops_config.auto_health_report_enabled
+                                             is on (default: off)
 ```
 
 `apps/web/vercel.json` runs install/build from the monorepo root so
@@ -87,6 +93,24 @@ locally (`pnpm start` / `pnpm dev`) during development and verification.
   `apps/web` exposes `GET /api/health`. Neither is monitored
   continuously in production today — `/admin/system` runs an on-demand
   check when an admin loads the page.
+- **Scheduled health report** (`/api/cron/health-check`,
+  `apps/web/src/lib/deploy/healthReport.ts`): a daily cron, gated by
+  `ops_config.auto_health_report_enabled` (default `false`, toggled on
+  `/admin/updates` alongside the other automation flags). When on, it
+  reuses the same pure-fetch game-server probe `/admin/system` uses
+  (`checkGameServer()`); database reachability needs no separate probe,
+  since reading `ops_config` itself already proves the database
+  answered. A `down`/`degraded` result posts to a Discord webhook (via
+  `DISCORD_WEBHOOK_URL`, optional — degrades to a silent no-op without
+  it, the same "not configured" posture as `GITHUB_TOKEN`/`VERCEL_TOKEN`)
+  and writes a `medium`-risk `admin_audit_logs` row via
+  `recordSystemAuditLog()` (`actor_type: 'system'`, the same session-less
+  path the weekly pipeline uses — `record_audit_log()` itself needs
+  `is_admin()`, which no cron invocation ever has). A healthy result, or
+  `unknown` (the game server URL isn't configured in this project's own
+  deployment today), does neither. Locked to once per calendar day the
+  same way the weekly jobs are locked to once per week
+  (`scheduler_runs`, job name `health-check`).
 - **Maintenance mode**: an admin can start/end a maintenance window from
   `/admin/system` (`public.maintenance_windows`, server-authoritative).
   A currently active window is surfaced on the landing, teacher, and
@@ -110,12 +134,17 @@ locally (`pnpm start` / `pnpm dev`) during development and verification.
 None of the following is automated or scheduled today:
 
 - Emergency security patch process.
-- Continuous/scheduled database or deployment health monitoring beyond
-  what the update pipeline itself checks mid-deploy.
+- Continuous (sub-daily) health monitoring — the scheduled health report
+  above runs once a day, not continuously, and only ever probes the game
+  server specifically, not a broader "deployment health" concept.
 - Log management and retention policy.
 - Backup and restore process (Supabase's own backup capabilities have
   not been configured or verified for this project).
-- Discord webhook–based operations reporting.
+- Broader Discord-webhook operations reporting — `postDiscordReport()`
+  (`apps/web/src/lib/deploy/discord.ts`) is a real, generic, working
+  mechanism now, but the only thing that calls it today is the health
+  report's failure alert above; routing other events (deploy
+  success/failure, a new update plan) through it is still undecided.
 - A distributed rate limiter (today's is per-process in-memory — see
   [`../security/security.md`](../security/security.md)).
 
@@ -131,6 +160,18 @@ stored in Vercel's environment variable configuration.
 from the repo root is both the pre-deploy gate and what GitHub Actions CI
 runs automatically on every push to `master` and every pull request (the
 audit step as of this writing; the rest since Phase 8).
+
+`discord.test.ts` and `healthReport.test.ts` (mocked fetch/Supabase, no
+live webhook or database) cover the health-report mechanics: skips
+without a probe when disabled or when the config read itself fails,
+treats `unknown` as healthy, alerts and logs exactly once per `down`/
+`degraded` result. `health-check/route.test.ts` covers the
+`CRON_SECRET` fail-closed check and the scheduler-lock short-circuit,
+the same pattern as the two existing cron routes'. **No live Discord
+webhook, live game server, or live Vercel Cron firing was exercised** —
+consistent with every other "not configured" integration path in this
+project (see Phase 4/5+6's own testing notes in
+[`../admin/admin.md`](../admin/admin.md)).
 
 ## Related Documents
 

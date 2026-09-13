@@ -6,19 +6,24 @@ export interface OpsConfig {
   autoUpdateEnabled: boolean;
   autoAnnouncementEnabled: boolean;
   autoRollbackEnabled: boolean;
+  autoHealthReportEnabled: boolean;
 }
 
 const DEFAULT_CONFIG: OpsConfig = {
   autoUpdateEnabled: false,
   autoAnnouncementEnabled: false,
   autoRollbackEnabled: false,
+  autoHealthReportEnabled: false,
 };
+
+const OPS_CONFIG_COLUMNS =
+  "auto_update_enabled, auto_announcement_enabled, auto_rollback_enabled, auto_health_report_enabled";
 
 export async function getOpsConfig(): Promise<OpsConfig> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("ops_config")
-    .select("auto_update_enabled, auto_announcement_enabled, auto_rollback_enabled")
+    .select(OPS_CONFIG_COLUMNS)
     .eq("singleton", true)
     .single();
 
@@ -30,6 +35,7 @@ export async function getOpsConfig(): Promise<OpsConfig> {
     autoUpdateEnabled: data.auto_update_enabled,
     autoAnnouncementEnabled: data.auto_announcement_enabled,
     autoRollbackEnabled: data.auto_rollback_enabled,
+    autoHealthReportEnabled: data.auto_health_report_enabled,
   };
 }
 
@@ -38,7 +44,7 @@ export async function getOpsConfigForScheduler(): Promise<OpsConfig | null> {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
     .from("ops_config")
-    .select("auto_update_enabled, auto_announcement_enabled, auto_rollback_enabled")
+    .select(OPS_CONFIG_COLUMNS)
     .eq("singleton", true)
     .single();
 
@@ -50,5 +56,6 @@ export async function getOpsConfigForScheduler(): Promise<OpsConfig | null> {
     autoUpdateEnabled: data.auto_update_enabled,
     autoAnnouncementEnabled: data.auto_announcement_enabled,
     autoRollbackEnabled: data.auto_rollback_enabled,
+    autoHealthReportEnabled: data.auto_health_report_enabled,
   };
 }

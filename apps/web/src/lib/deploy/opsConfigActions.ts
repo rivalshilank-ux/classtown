@@ -13,6 +13,7 @@ const updateSchema = z.object({
   autoUpdateEnabled: z.boolean(),
   autoAnnouncementEnabled: z.boolean(),
   autoRollbackEnabled: z.boolean(),
+  autoHealthReportEnabled: z.boolean(),
 });
 
 export async function updateOpsConfig(input: unknown): Promise<OpsConfigActionResult> {
@@ -33,6 +34,7 @@ export async function updateOpsConfig(input: unknown): Promise<OpsConfigActionRe
       auto_update_enabled: parsed.data.autoUpdateEnabled,
       auto_announcement_enabled: parsed.data.autoAnnouncementEnabled,
       auto_rollback_enabled: parsed.data.autoRollbackEnabled,
+      auto_health_report_enabled: parsed.data.autoHealthReportEnabled,
       updated_by: admin.id,
     })
     .eq("singleton", true);

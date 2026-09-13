@@ -25,7 +25,8 @@ function toHealthCheckUrl(rawUrl: string | undefined): string | null {
   }
 }
 
-async function checkGameServer(): Promise<ServiceStatus> {
+/** Exported for reuse by the session-less scheduled health-report job (apps/web/src/lib/deploy/healthReport.ts) -- a pure fetch, no Supabase session needed. */
+export async function checkGameServer(): Promise<ServiceStatus> {
   const healthUrl = toHealthCheckUrl(process.env.NEXT_PUBLIC_GAME_SERVER_URL);
   if (!healthUrl) {
     return "unknown";

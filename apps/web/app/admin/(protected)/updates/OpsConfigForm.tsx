@@ -22,6 +22,11 @@ const FIELDS: { key: keyof OpsConfig; label: string; help: string }[] = [
     label: "실패 시 자동 롤백",
     help: "헬스 체크가 실패하면 직전 배포로 자동 승격을 시도합니다. 꺼져 있으면 실패 상태로 멈추고 관리자를 기다립니다.",
   },
+  {
+    key: "autoHealthReportEnabled",
+    label: "일일 헬스 체크 리포트",
+    help: "매일 게임 서버 상태를 확인해 이상이 있으면 Discord(설정된 경우)로 알리고 감사 로그에 남깁니다.",
+  },
 ];
 
 export function OpsConfigForm({ current }: { current: OpsConfig }) {
@@ -39,6 +44,7 @@ export function OpsConfigForm({ current }: { current: OpsConfig }) {
       autoUpdateEnabled: formData.get("autoUpdateEnabled") === "on",
       autoAnnouncementEnabled: formData.get("autoAnnouncementEnabled") === "on",
       autoRollbackEnabled: formData.get("autoRollbackEnabled") === "on",
+      autoHealthReportEnabled: formData.get("autoHealthReportEnabled") === "on",
     };
 
     startTransition(async () => {

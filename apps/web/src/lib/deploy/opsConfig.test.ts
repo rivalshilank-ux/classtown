@@ -24,7 +24,12 @@ describe("getOpsConfig", () => {
 
   it("maps the row to camelCase", async () => {
     mockSingle.mockResolvedValue({
-      data: { auto_update_enabled: true, auto_announcement_enabled: false, auto_rollback_enabled: true },
+      data: {
+        auto_update_enabled: true,
+        auto_announcement_enabled: false,
+        auto_rollback_enabled: true,
+        auto_health_report_enabled: true,
+      },
       error: null,
     });
 
@@ -34,6 +39,7 @@ describe("getOpsConfig", () => {
       autoUpdateEnabled: true,
       autoAnnouncementEnabled: false,
       autoRollbackEnabled: true,
+      autoHealthReportEnabled: true,
     });
   });
 
@@ -44,6 +50,7 @@ describe("getOpsConfig", () => {
       autoUpdateEnabled: false,
       autoAnnouncementEnabled: false,
       autoRollbackEnabled: false,
+      autoHealthReportEnabled: false,
     });
   });
 });

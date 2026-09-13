@@ -285,6 +285,7 @@ export type Database = {
       ops_config: {
         Row: {
           auto_announcement_enabled: boolean
+          auto_health_report_enabled: boolean
           auto_rollback_enabled: boolean
           auto_update_enabled: boolean
           singleton: boolean
@@ -293,6 +294,7 @@ export type Database = {
         }
         Insert: {
           auto_announcement_enabled?: boolean
+          auto_health_report_enabled?: boolean
           auto_rollback_enabled?: boolean
           auto_update_enabled?: boolean
           singleton?: boolean
@@ -301,6 +303,7 @@ export type Database = {
         }
         Update: {
           auto_announcement_enabled?: boolean
+          auto_health_report_enabled?: boolean
           auto_rollback_enabled?: boolean
           auto_update_enabled?: boolean
           singleton?: boolean

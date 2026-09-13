@@ -255,6 +255,20 @@ summary:
   configured" (no `GITHUB_TOKEN`/`VERCEL_TOKEN`/deploy hook exists here),
   but the code path is the real one.
 
+### Scheduled Health Report
+
+A fourth `ops_config` flag, `auto_health_report_enabled` (default
+`false`, same `/admin/updates` form), gates a daily
+`/api/cron/health-check` job — full detail in
+[`../operations/operations.md`](../operations/operations.md). On a
+`down`/`degraded` game server, it posts to a Discord webhook
+(`DISCORD_WEBHOOK_URL`, optional — "not configured" without it, same
+posture as `GITHUB_TOKEN`/`VERCEL_TOKEN` above) and writes a
+`medium`-risk, `actor_type: 'system'` row directly to
+`admin_audit_logs` via `recordSystemAuditLog()` — not
+`record_audit_log()`, which needs `is_admin()` and therefore cannot be
+called from a session-less cron invocation.
+
 ## Planned
 
 - **Moderation** — reports, warnings, temporary restrictions.
@@ -340,6 +354,12 @@ against mocked Supabase/GitHub/Vercel clients. The two cron route handlers
 **No live Vercel Cron firing, live GitHub Actions run, live Vercel
 deploy/rollback, or live Groq-assisted risk summary was exercised** — every
 integration's "not configured" path is what the test suite actually runs.
+
+The Scheduled Health Report above (added after Phase 5+6) follows the
+identical convention: `discord.test.ts`, `healthReport.test.ts`, and
+`health-check/route.test.ts` cover it the same way, against mocked
+fetch/Supabase — no live Discord webhook or live game server deployment
+was exercised either.
 
 ## Related Documents
 

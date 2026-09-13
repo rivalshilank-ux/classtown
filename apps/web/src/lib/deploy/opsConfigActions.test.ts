@@ -29,6 +29,7 @@ const VALID_INPUT = {
   autoUpdateEnabled: true,
   autoAnnouncementEnabled: false,
   autoRollbackEnabled: false,
+  autoHealthReportEnabled: false,
 };
 
 describe("updateOpsConfig", () => {

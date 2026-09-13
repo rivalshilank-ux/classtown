@@ -4,6 +4,7 @@
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=@classtown/web",
   "crons": [
     { "path": "/api/cron/weekly-check", "schedule": "0 10 * * 0" },
-    { "path": "/api/cron/weekly-update", "schedule": "0 18 * * 5" }
+    { "path": "/api/cron/weekly-update", "schedule": "0 18 * * 5" },
+    { "path": "/api/cron/health-check", "schedule": "0 22 * * *" }
   ]
 }
