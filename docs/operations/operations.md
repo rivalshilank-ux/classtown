@@ -5,8 +5,9 @@
 In Progress — deployment is Implemented (Vercel, git-triggered), CI is
 Implemented (GitHub Actions, runs on every push to `master`), an
 automated weekly update-plan/deployment pipeline is Implemented but
-disabled by default (see [`../admin/admin.md`](../admin/admin.md));
-automated backups, dependency scanning, and ops reporting are Planned.
+disabled by default (see [`../admin/admin.md`](../admin/admin.md)), and
+an automated dependency vulnerability scan (`pnpm audit`) is Implemented
+in CI; automated backups and ops reporting are Planned.
 
 ## Purpose
 
@@ -72,6 +73,16 @@ locally (`pnpm start` / `pnpm dev`) during development and verification.
   cron route has been exercised against real GitHub/Vercel credentials in
   this repository's development environment; both fail closed (fail an
   auth check or report "not configured") without them.
+- **Dependency vulnerability scanning**: `pnpm audit --prod --audit-level=high`
+  (`pnpm run audit`) runs as a CI step on every push/PR, scoped to what
+  actually ships (`apps/web`, `apps/game-server`) rather than every dev
+  tool's own transitive graph. One known advisory
+  (`@colyseus/core@0.16.24`'s pinned `nanoid@^2.0.0`, three GHSA ids) is
+  pre-ignored via `pnpm-workspace.yaml`'s `auditConfig` — see the comment
+  there for why it doesn't apply to how this dependency is actually
+  called, and why the real fix (`@colyseus/core` >=0.17) is a separate,
+  bigger upgrade, not something to force through a version override. Any
+  other new advisory in the production dependency graph still fails CI.
 - **Health check**: `apps/game-server` exposes `GET /health`;
   `apps/web` exposes `GET /api/health`. Neither is monitored
   continuously in production today — `/admin/system` runs an on-demand
@@ -104,8 +115,6 @@ None of the following is automated or scheduled today:
 - Log management and retention policy.
 - Backup and restore process (Supabase's own backup capabilities have
   not been configured or verified for this project).
-- Dependency/security update checks (no `pnpm audit` or equivalent runs
-  automatically).
 - Discord webhook–based operations reporting.
 - A distributed rate limiter (today's is per-process in-memory — see
   [`../security/security.md`](../security/security.md)).
@@ -118,9 +127,10 @@ stored in Vercel's environment variable configuration.
 
 ## Testing
 
-`pnpm typecheck && pnpm lint && pnpm test && pnpm build` from the repo
-root is both the pre-deploy gate and, as of Phase 8, what GitHub Actions
-CI runs automatically on every push to `master` and every pull request.
+`pnpm run audit && pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+from the repo root is both the pre-deploy gate and what GitHub Actions CI
+runs automatically on every push to `master` and every pull request (the
+audit step as of this writing; the rest since Phase 8).
 
 ## Related Documents
 

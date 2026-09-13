@@ -6,6 +6,24 @@ allowBuilds:
   msgpackr-extract: true
   supabase: true
   unrs-resolver: true
+# @colyseus/core@0.16.24 (apps/game-server) pins a transitive nanoid@2.1.11,
+# flagged high by these three advisories. All three are about
+# customAlphabet/customRandom misuse (a zero-length custom generator, a
+# non-integer size, integer overflow on a huge size); @colyseus/core only
+# ever calls plain nanoid() with no custom alphabet or size, so none of
+# these apply to how this dependency is actually used here. A real fix
+# means @colyseus/core >=0.17, which migrated off nanoid@2's default-export
+# shape -- confirmed incompatible: overriding nanoid to 3.3.18 here while
+# staying on @colyseus/core@0.16.x breaks room creation at runtime
+# ("does not provide an export named 'default'"), since 0.16.x's whole line
+# depends on nanoid@^2.0.0 specifically, not just a range that happens to
+# resolve there. Revisit when the game server takes that upgrade
+# separately -- see docs/operations/operations.md.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-28wg-ghj8-5hjv
+    - GHSA-2v37-7h3g-55p8
+    - GHSA-xwg4-73v4-xw9w
 minimumReleaseAgeExclude:
   - '@supabase/auth-js@2.115.0'
   - '@supabase/functions-js@2.115.0'

@@ -28,6 +28,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Fills the "Dependency/security update checks" gap
+      # docs/operations/operations.md has listed under Planned since the
+      # project started -- no pnpm audit or equivalent ran automatically
+      # before this. Scoped to --prod: what actually ships in apps/web and
+      # apps/game-server, not every dev tool's own transitive graph. One
+      # known advisory is pre-ignored via pnpm-workspace.yaml's
+      # auditConfig (see the comment there for why) -- a new advisory
+      # anywhere else in the production dependency graph still fails this.
+      - run: pnpm run audit
+
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test

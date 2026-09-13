@@ -70,6 +70,7 @@ pnpm build       # 모든 패키지/앱 빌드
 pnpm typecheck   # 전체 tsc --noEmit
 pnpm lint        # 전체 eslint
 pnpm test        # test 스크립트가 있는 모든 패키지에서 vitest 실행
+pnpm run audit   # 프로덕션 의존성 취약점 검사 (CI에서도 실행됨)
 ```
 
 `shared-schema`는 raw TypeScript가 아니라 컴파일된 JS(`dist/`)를 배포하는 유일한

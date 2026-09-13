@@ -11,7 +11,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "audit": "pnpm audit --prod --audit-level=high"
   },
   "devDependencies": {
     "supabase": "2.90.0",
